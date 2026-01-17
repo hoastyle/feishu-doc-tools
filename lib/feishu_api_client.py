@@ -977,6 +977,8 @@ class FeishuApiClient:
                 elif block_type == "image":
                     children.append(self._format_image_block(options))
                     image_block_indices.append(len(children) - 1)
+                elif block_type == "board":
+                    children.append(self._format_board_block(options))
                 else:
                     logger.warning(f"Unknown block type: {block_type}, skipping")
                     i += 1
@@ -1299,6 +1301,34 @@ class FeishuApiClient:
         align = image_config.get("align", 2)  # Default center
 
         return {"block_type": 27, "image": {"align": align}}  # Image block type (from MCP source)
+
+    def _format_board_block(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format whiteboard/board block for API.
+
+        Args:
+            options: Board options dictionary containing:
+                - board: Board configuration with optional width, height
+
+        Returns:
+            Formatted board block for API
+
+        Example:
+            >>> options = {"board": {"width": 800, "height": 600}}
+            >>> block = client._format_board_block(options)
+        """
+        board_config = options.get("board", {})
+        align = board_config.get("align", 2)  # Default center
+
+        board_data = {"align": align}
+
+        # Add optional dimensions if provided
+        if "width" in board_config:
+            board_data["width"] = board_config["width"]
+        if "height" in board_config:
+            board_data["height"] = board_config["height"]
+
+        return {"block_type": 43, "board": board_data}  # Whiteboard block type
 
     def create_table_block(
         self,

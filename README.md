@@ -173,6 +173,7 @@ Options:
 | `- 列表` | list | 有序/无序列表 |
 | `![img](url)` | image | 本地/网络图片 |
 | 表格 | table | 完整表格支持 |
+| - | board | Whiteboard/画板（仅API支持）|
 
 ## 项目结构
 
@@ -326,8 +327,8 @@ uv run pytest --cov=scripts --cov=lib tests/
 **测试覆盖**：
 ```bash
 $ uv run pytest tests/
-======================= 32 passed, 1 skipped in 1.82s =======================
-测试覆盖率：29%（新增 Wiki 空间创建测试）
+======================= 36 passed, 1 skipped in 1.61s =======================
+测试覆盖率：33%（新增 Wiki 空间 + Whiteboard 测试）
 ```
 
 **MVP功能**：

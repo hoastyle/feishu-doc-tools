@@ -12,7 +12,7 @@ from lib.feishu_api_client import (
     FeishuApiRequestError,
     FeishuApiAuthError,
     create_document_from_markdown,
-    batch_create_documents_from_folder
+    batch_create_documents_from_folder,
 )
 
 
@@ -54,15 +54,15 @@ def hello():
 ![Sample Image](image.png)
 """
     md_file = tmp_path / "test.md"
-    md_file.write_text(md_content, encoding='utf-8')
+    md_file.write_text(md_content, encoding="utf-8")
     return md_file
 
 
 class TestDocumentCreation:
     """Tests for document creation functionality."""
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_document_success(self, mock_post, mock_token, mock_client):
         """Test successful document creation."""
         # Setup
@@ -75,9 +75,9 @@ class TestDocumentCreation:
                 "document": {
                     "document_id": "doxcnxxxxx",
                     "title": "Test Document",
-                    "revision_id": 1
+                    "revision_id": 1,
                 }
-            }
+            },
         }
         mock_post.return_value = mock_response
 
@@ -90,8 +90,8 @@ class TestDocumentCreation:
         assert "https://feishu.cn/docx/doxcnxxxxx" in result["url"]
         mock_post.assert_called_once()
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_document_with_folder(self, mock_post, mock_token, mock_client):
         """Test creating document in specific folder."""
         # Setup
@@ -100,13 +100,7 @@ class TestDocumentCreation:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "code": 0,
-            "data": {
-                "document": {
-                    "document_id": "doxcnxxxxx",
-                    "title": "Test",
-                    "revision_id": 1
-                }
-            }
+            "data": {"document": {"document_id": "doxcnxxxxx", "title": "Test", "revision_id": 1}},
         }
         mock_post.return_value = mock_response
 
@@ -119,8 +113,8 @@ class TestDocumentCreation:
         call_kwargs = mock_post.call_args[1]
         assert "Bearer test_token" in call_kwargs["headers"]["Authorization"]
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_document_auth_failure(self, mock_post, mock_token, mock_client):
         """Test document creation with auth failure."""
         # Setup
@@ -134,18 +128,15 @@ class TestDocumentCreation:
         with pytest.raises(FeishuApiRequestError):
             mock_client.create_document("Test")
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_document_api_error(self, mock_post, mock_token, mock_client):
         """Test document creation with API error response."""
         # Setup
         mock_token.return_value = "test_token"
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "code": 400,
-            "msg": "Invalid request"
-        }
+        mock_response.json.return_value = {"code": 400, "msg": "Invalid request"}
         mock_post.return_value = mock_response
 
         # Execute & Assert
@@ -156,20 +147,15 @@ class TestDocumentCreation:
 class TestFolderOperations:
     """Tests for folder management functionality."""
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.get')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.get")
     def test_get_root_folder_token(self, mock_get, mock_token, mock_client):
         """Test getting root folder token."""
         # Setup
         mock_token.return_value = "test_token"
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "code": 0,
-            "data": {
-                "folder_token": "fldcnxxxxx"
-            }
-        }
+        mock_response.json.return_value = {"code": 0, "data": {"folder_token": "fldcnxxxxx"}}
         mock_get.return_value = mock_response
 
         # Execute
@@ -179,8 +165,8 @@ class TestFolderOperations:
         assert result == "fldcnxxxxx"
         mock_get.assert_called_once()
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_folder_success(self, mock_post, mock_token, mock_client):
         """Test successful folder creation."""
         # Setup
@@ -189,17 +175,12 @@ class TestFolderOperations:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "code": 0,
-            "data": {
-                "folder": {
-                    "folder_token": "fldcnxxxxx",
-                    "name": "Test Folder"
-                }
-            }
+            "data": {"folder": {"folder_token": "fldcnxxxxx", "name": "Test Folder"}},
         }
         mock_post.return_value = mock_response
 
         # Mock get_root_folder_token
-        with patch.object(mock_client, 'get_root_folder_token', return_value="root_token"):
+        with patch.object(mock_client, "get_root_folder_token", return_value="root_token"):
             # Execute
             result = mock_client.create_folder("Test Folder")
 
@@ -208,8 +189,8 @@ class TestFolderOperations:
         assert result["name"] == "Test Folder"
         assert "https://feishu.cn/drive/folder/fldcnxxxxx" in result["url"]
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.get')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.get")
     def test_list_folder_contents(self, mock_get, mock_token, mock_client):
         """Test listing folder contents."""
         # Setup
@@ -221,9 +202,9 @@ class TestFolderOperations:
             "data": {
                 "items": [
                     {"name": "file1.md", "type": "file"},
-                    {"name": "folder1", "type": "folder"}
+                    {"name": "folder1", "type": "folder"},
                 ]
-            }
+            },
         }
         mock_get.return_value = mock_response
 
@@ -239,33 +220,30 @@ class TestFolderOperations:
 class TestHighLevelFunctions:
     """Tests for high-level convenience functions."""
 
-    @patch('lib.feishu_api_client.upload_markdown_to_feishu')
-    @patch('lib.feishu_api_client.FeishuApiClient.create_document')
+    @patch("lib.feishu_api_client.upload_markdown_to_feishu")
+    @patch("lib.feishu_api_client.FeishuApiClient.create_document")
     def test_create_document_from_markdown(self, mock_create, mock_upload, sample_md_file):
         """Test create_document_from_markdown function."""
         # Setup
         mock_create.return_value = {
             "document_id": "doxcnxxxxx",
             "url": "https://feishu.cn/docx/doxcnxxxxx",
-            "title": "test"
+            "title": "test",
         }
         mock_upload.return_value = {
             "success": True,
             "total_blocks": 50,
             "total_images": 3,
-            "total_batches": 1
+            "total_batches": 1,
         }
 
-        with patch('lib.feishu_api_client.FeishuApiClient.from_env') as mock_from_env:
+        with patch("lib.feishu_api_client.FeishuApiClient.from_env") as mock_from_env:
             mock_client = Mock()
             mock_client.create_document = mock_create
             mock_from_env.return_value = mock_client
 
             # Execute
-            result = create_document_from_markdown(
-                str(sample_md_file),
-                title="Test Document"
-            )
+            result = create_document_from_markdown(str(sample_md_file), title="Test Document")
 
         # Assert
         assert result["document_id"] == "doxcnxxxxx"
@@ -280,8 +258,8 @@ class TestHighLevelFunctions:
         with pytest.raises(RuntimeError):
             create_document_from_markdown("/non/existent/file.md")
 
-    @patch('lib.feishu_api_client.create_document_from_markdown')
-    @patch('lib.feishu_api_client.FeishuApiClient.from_env')
+    @patch("lib.feishu_api_client.create_document_from_markdown")
+    @patch("lib.feishu_api_client.FeishuApiClient.from_env")
     def test_batch_create_documents_from_folder(self, mock_from_env, mock_create_doc, tmp_path):
         """Test batch document creation from folder."""
         # Setup - create test markdown files
@@ -293,7 +271,7 @@ class TestHighLevelFunctions:
                 "document_id": f"docxcnxxxxx{i}",
                 "document_url": f"https://feishu.cn/docx/docxcnxxxxx{i}",
                 "total_blocks": 10,
-                "total_images": 0
+                "total_images": 0,
             }
             for i in range(3)
         ]
@@ -324,8 +302,8 @@ class TestHighLevelFunctions:
         with pytest.raises(FileNotFoundError):
             batch_create_documents_from_folder("/non/existent/folder")
 
-    @patch('lib.feishu_api_client.create_document_from_markdown')
-    @patch('lib.feishu_api_client.FeishuApiClient.from_env')
+    @patch("lib.feishu_api_client.create_document_from_markdown")
+    @patch("lib.feishu_api_client.FeishuApiClient.from_env")
     def test_batch_create_documents_with_failures(self, mock_from_env, mock_create_doc, tmp_path):
         """Test batch creation with some failures."""
         # Setup - create test markdown files
@@ -336,7 +314,7 @@ class TestHighLevelFunctions:
         mock_create_doc.side_effect = [
             {"document_id": "doc1", "document_url": "url1", "total_blocks": 10, "total_images": 0},
             FeishuApiRequestError("API Error"),
-            {"document_id": "doc3", "document_url": "url3", "total_blocks": 10, "total_images": 0}
+            {"document_id": "doc3", "document_url": "url3", "total_blocks": 10, "total_images": 0},
         ]
 
         # Execute
@@ -353,8 +331,8 @@ class TestHighLevelFunctions:
 class TestWikiSpaceOperations:
     """Tests for Wiki space operations."""
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_wiki_space_success(self, mock_post, mock_token, mock_client):
         """Test successful wiki space creation."""
         # Setup
@@ -369,9 +347,9 @@ class TestWikiSpaceOperations:
                     "space_id": "7516222021840306180",
                     "name": "Test Space",
                     "description": "Test Description",
-                    "visibility": "public"
+                    "visibility": "public",
                 }
-            }
+            },
         }
         mock_post.return_value = mock_response
 
@@ -385,8 +363,8 @@ class TestWikiSpaceOperations:
         assert result["url"] == "https://feishu.cn/wiki/7516222021840306180"
         mock_post.assert_called_once()
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_wiki_space_without_description(self, mock_post, mock_token, mock_client):
         """Test creating wiki space without description."""
         # Setup
@@ -396,12 +374,7 @@ class TestWikiSpaceOperations:
         mock_response.json.return_value = {
             "code": 0,
             "msg": "success",
-            "data": {
-                "space": {
-                    "space_id": "7516222021840306180",
-                    "name": "Test Space"
-                }
-            }
+            "data": {"space": {"space_id": "7516222021840306180", "name": "Test Space"}},
         }
         mock_post.return_value = mock_response
 
@@ -414,26 +387,23 @@ class TestWikiSpaceOperations:
         assert result["description"] is None
         mock_post.assert_called_once()
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_wiki_space_api_error(self, mock_post, mock_token, mock_client):
         """Test API error handling."""
         # Setup
         mock_token.return_value = "test_token"
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "code": 99991663,
-            "msg": "Space name already exists"
-        }
+        mock_response.json.return_value = {"code": 99991663, "msg": "Space name already exists"}
         mock_post.return_value = mock_response
 
         # Execute & Assert
         with pytest.raises(FeishuApiRequestError, match="Space name already exists"):
             mock_client.create_wiki_space("Duplicate Space")
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_create_wiki_space_http_error(self, mock_post, mock_token, mock_client):
         """Test HTTP error handling."""
         # Setup
@@ -448,11 +418,87 @@ class TestWikiSpaceOperations:
             mock_client.create_wiki_space("Test Space")
 
 
+class TestWhiteboardOperations:
+    """Tests for Whiteboard/Board block operations."""
+
+    def test_format_board_block_basic(self, mock_client):
+        """Test basic board block formatting."""
+        # Setup
+        options = {"board": {}}
+
+        # Execute
+        result = mock_client._format_board_block(options)
+
+        # Assert
+        assert result["block_type"] == 43
+        assert "board" in result
+        assert result["board"]["align"] == 2  # Default center
+
+    def test_format_board_block_with_dimensions(self, mock_client):
+        """Test board block with width and height."""
+        # Setup
+        options = {"board": {"width": 800, "height": 600, "align": 1}}
+
+        # Execute
+        result = mock_client._format_board_block(options)
+
+        # Assert
+        assert result["block_type"] == 43
+        assert result["board"]["width"] == 800
+        assert result["board"]["height"] == 600
+        assert result["board"]["align"] == 1
+
+    def test_format_board_block_partial_dimensions(self, mock_client):
+        """Test board block with only width."""
+        # Setup
+        options = {"board": {"width": 1000}}
+
+        # Execute
+        result = mock_client._format_board_block(options)
+
+        # Assert
+        assert result["block_type"] == 43
+        assert result["board"]["width"] == 1000
+        assert "height" not in result["board"]
+        assert result["board"]["align"] == 2  # Default
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_batch_create_with_board_block(self, mock_post, mock_token, mock_client):
+        """Test batch creating blocks including board type."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {"blocks": [{"block_id": "block1"}, {"block_id": "block2"}]},
+        }
+        mock_post.return_value = mock_response
+
+        blocks = [
+            {"blockType": "text", "options": {"text": {"textStyles": [{"text": "Hello"}]}}},
+            {"blockType": "board", "options": {"board": {"width": 800, "height": 600}}},
+        ]
+
+        # Execute
+        result = mock_client.batch_create_blocks("doc123", blocks)
+
+        # Assert
+        assert result["code"] == 0
+        mock_post.assert_called_once()
+        # Verify the payload contains both text and board blocks
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        assert len(payload["children"]) == 2
+        assert payload["children"][1]["block_type"] == 43  # Board block
+
+
 class TestErrorHandling:
     """Tests for error handling."""
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
-    @patch('requests.Session.post')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
     def test_network_timeout(self, mock_post, mock_token, mock_client):
         """Test handling of network timeout."""
         # Setup
@@ -463,7 +509,7 @@ class TestErrorHandling:
         with pytest.raises(TimeoutError):
             mock_client.create_document("Test")
 
-    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
     def test_token_retrieval_failure(self, mock_token, mock_client):
         """Test handling of token retrieval failure."""
         # Setup
