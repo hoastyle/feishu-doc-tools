@@ -462,7 +462,8 @@ class FeishuApiClient:
         doc_id: str,
         blocks: List[Dict[str, Any]],
         parent_id: Optional[str] = None,
-        index: int = 0
+        index: int = 0,
+        batch_size: int = 50
     ) -> Dict[str, Any]:
         """
         Batch create blocks in a Feishu document.
@@ -474,12 +475,17 @@ class FeishuApiClient:
             blocks: List of block configurations (from md_to_feishu.py output)
             parent_id: Parent block ID (default: doc_id for root level)
             index: Insertion index (default: 0 for beginning)
+            batch_size: Maximum blocks per API request (default: 50, max: 50)
 
         Returns:
             API response with created block information
 
         Raises:
             FeishuApiRequestError: If API request fails
+
+        Note:
+            Feishu API has a hard limit of 50 blocks per request.
+            Larger batches are automatically split and processed sequentially.
 
         Block format:
             {
@@ -496,75 +502,92 @@ class FeishuApiClient:
         """
         token = self.get_tenant_token()
 
+        # Enforce API limit: max 50 blocks per request
+        batch_size = min(batch_size, 50)
+
         # Use doc_id as parent_id if not specified (root level)
         if parent_id is None:
             parent_id = doc_id
 
-        # Convert blocks to Feishu API format
-        children = []
-        image_block_indices = []  # Track image block positions
+        # Convert blocks to Feishu API format and process in batches
+        all_image_block_ids = []
+        current_index = index
 
-        for i, block in enumerate(blocks):
-            block_type = block.get("blockType", "")
-            options = block.get("options", {})
+        # Process blocks in chunks of batch_size
+        for batch_start in range(0, len(blocks), batch_size):
+            batch_end = min(batch_start + batch_size, len(blocks))
+            batch_blocks = blocks[batch_start:batch_end]
 
-            if block_type == "text":
-                children.append(self._format_text_block(options))
-            elif block_type.startswith("heading"):
-                children.append(self._format_heading_block(block_type, options))
-            elif block_type == "code":
-                children.append(self._format_code_block(options))
-            elif block_type == "list":
-                children.append(self._format_list_block(options))
-            elif block_type == "image":
-                children.append(self._format_image_block(options))
-                image_block_indices.append(i)
-            else:
-                logger.warning(f"Unknown block type: {block_type}, skipping")
-                continue
+            children = []
+            image_block_indices = []  # Track image block positions in this batch
 
-        # Prepare request
-        endpoint = self.BLOCKS_ENDPOINT_TEMPLATE.format(doc_id=doc_id, parent_id=parent_id)
-        url = f"{self.BASE_URL}{endpoint}?document_revision_id=-1"
+            for i, block in enumerate(batch_blocks):
+                block_type = block.get("blockType", "")
+                options = block.get("options", {})
 
-        payload = {
-            "children": children,
-            "index": index
-        }
+                if block_type == "text":
+                    children.append(self._format_text_block(options))
+                elif block_type.startswith("heading"):
+                    children.append(self._format_heading_block(block_type, options))
+                elif block_type == "code":
+                    children.append(self._format_code_block(options))
+                elif block_type == "list":
+                    children.append(self._format_list_block(options))
+                elif block_type == "image":
+                    children.append(self._format_image_block(options))
+                    image_block_indices.append(len(children) - 1)  # Track position in this batch
+                else:
+                    logger.warning(f"Unknown block type: {block_type}, skipping")
+                    continue
 
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
+            # Prepare request for this batch
+            endpoint = self.BLOCKS_ENDPOINT_TEMPLATE.format(doc_id=doc_id, parent_id=parent_id)
+            url = f"{self.BASE_URL}{endpoint}?document_revision_id=-1"
 
-        logger.info(f"Creating {len(children)} blocks in document {doc_id}")
-        logger.debug(f"Request payload: {json.dumps(payload, ensure_ascii=False)[:500]}...")
+            payload = {
+                "children": children,
+                "index": current_index
+            }
 
-        # Make request
-        response = self.session.post(url, json=payload, headers=headers, timeout=30)
+            headers = {
+                "Authorization": f"Bearer {token}"
+            }
 
-        if response.status_code != 200:
-            raise FeishuApiRequestError(
-                f"Failed to create blocks: HTTP {response.status_code}\n"
-                f"Response: {response.text}"
-            )
+            logger.info(f"Creating {len(children)} blocks in document {doc_id} (batch {batch_start//batch_size + 1})")
+            logger.debug(f"Request payload: {json.dumps(payload, ensure_ascii=False)[:500]}...")
 
-        result = response.json()
+            # Make request for this batch
+            response = self.session.post(url, json=payload, headers=headers, timeout=30)
 
-        if result.get("code") != 0:
-            raise FeishuApiRequestError(
-                f"Failed to create blocks: {result.get('msg', 'Unknown error')}\n"
-                f"Error code: {result.get('code')}"
-            )
+            if response.status_code != 200:
+                raise FeishuApiRequestError(
+                    f"Failed to create blocks: HTTP {response.status_code}\n"
+                    f"Response: {response.text}"
+                )
 
-        logger.info(f"Successfully created {len(children)} blocks")
+            result = response.json()
 
-        # Extract image block IDs if any
-        image_block_ids = self._extract_image_block_ids(result, image_block_indices)
+            if result.get("code") != 0:
+                raise FeishuApiRequestError(
+                    f"Failed to create blocks: {result.get('msg', 'Unknown error')}\n"
+                    f"Error code: {result.get('code')}"
+                )
 
+            logger.info(f"Successfully created {len(children)} blocks")
+
+            # Extract image block IDs from this batch
+            image_block_ids = self._extract_image_block_ids(result, image_block_indices)
+            all_image_block_ids.extend(image_block_ids)
+
+            # Update index for next batch
+            current_index += len(children)
+
+        # Return aggregate result
         return {
-            **result,
-            "image_block_ids": image_block_ids,
-            "total_blocks_created": len(children)
+            "code": 0,
+            "data": {},
+            "image_block_ids": all_image_block_ids,
+            "total_blocks_created": len(blocks)
         }
 
     def upload_and_bind_image(
@@ -762,13 +785,18 @@ class FeishuApiClient:
         """Format code block for API"""
         code_config = options.get("code", {})
         code = code_config.get("code", "")
-        language = code_config.get("language", 0)  # 0 = PlainText
+        language = code_config.get("language", 1)  # 1 = PlainText (Feishu API standard)
 
         return {
-            "block_type": 3,  # Code block type (need to verify)
+            "block_type": 3,  # Code block type
             "code": {
                 "code": code,
-                "language": language
+                "language": language,
+                # Feishu API requires elements field for code blocks
+                "elements": [{
+                    "text": code,
+                    "style": {}
+                }]
             }
         }
 
