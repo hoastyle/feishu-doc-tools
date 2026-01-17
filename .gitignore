@@ -49,3 +49,7 @@ htmlcov/
 # Feishu specific
 /tmp/feishu_*
 *.json.tmp
+
+# Environment variables (keep .env.example)
+.env
+.env.local
