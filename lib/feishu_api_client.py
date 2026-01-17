@@ -27,16 +27,19 @@ logger = logging.getLogger(__name__)
 
 class FeishuApiClientError(Exception):
     """Base exception for Feishu API client errors"""
+
     pass
 
 
 class FeishuApiAuthError(FeishuApiClientError):
     """Authentication related errors"""
+
     pass
 
 
 class FeishuApiRequestError(FeishuApiClientError):
     """API request errors"""
+
     pass
 
 
@@ -75,9 +78,7 @@ class FeishuApiClient:
         self.app_id = app_id
         self.app_secret = app_secret
         self.session = requests.Session()
-        self.session.headers.update({
-            "Content-Type": "application/json; charset=utf-8"
-        })
+        self.session.headers.update({"Content-Type": "application/json; charset=utf-8"})
 
     @classmethod
     def from_env(cls, env_file: Optional[str] = None) -> "FeishuApiClient":
@@ -158,6 +159,23 @@ class FeishuApiClient:
 
         return cls(app_id, app_secret)
 
+    def get_default_folder_token(self) -> Optional[str]:
+        """
+        Get default folder token from environment variable.
+
+        This allows users to specify their personal cloud document folder
+        as the default location for creating documents.
+
+        Returns:
+            Folder token from FEISHU_DEFAULT_FOLDER_TOKEN env var, or None
+
+        Example:
+            >>> # Set in .env file:
+            >>> # FEISHU_DEFAULT_FOLDER_TOKEN=fldcnxxxxx
+            >>> token = client.get_default_folder_token()
+        """
+        return os.environ.get("FEISHU_DEFAULT_FOLDER_TOKEN")
+
     def get_tenant_token(self, force_refresh: bool = False) -> str:
         """
         Get or refresh tenant_access_token.
@@ -175,6 +193,7 @@ class FeishuApiClient:
             FeishuApiAuthError: If authentication fails
         """
         import time
+
         current_time = int(time.time())
 
         # Check cache
@@ -185,18 +204,13 @@ class FeishuApiClient:
 
         # Request new token
         url = f"{self.BASE_URL}{self.AUTH_ENDPOINT}"
-        payload = {
-            "app_id": self.app_id,
-            "app_secret": self.app_secret
-        }
+        payload = {"app_id": self.app_id, "app_secret": self.app_secret}
 
         logger.debug(f"Requesting tenant token from {url}")
         response = self.session.post(url, json=payload, timeout=10)
 
         if response.status_code != 200:
-            raise FeishuApiAuthError(
-                f"Failed to get tenant token: HTTP {response.status_code}"
-            )
+            raise FeishuApiAuthError(f"Failed to get tenant token: HTTP {response.status_code}")
 
         data = response.json()
 
@@ -219,10 +233,7 @@ class FeishuApiClient:
         return token
 
     def create_document(
-        self,
-        title: str,
-        folder_token: Optional[str] = None,
-        doc_type: str = "docx"
+        self, title: str, folder_token: Optional[str] = None, doc_type: str = "docx"
     ) -> Dict[str, Any]:
         """
         Create a new Feishu document.
@@ -284,14 +295,14 @@ class FeishuApiClient:
             "document_id": doc_id,
             "url": f"https://feishu.cn/docx/{doc_id}",
             "title": doc_data.get("title", title),
-            "revision_id": doc_data.get("revision_id")
+            "revision_id": doc_data.get("revision_id"),
         }
 
     def get_root_folder_token(self) -> str:
         """
         Get root folder token for current workspace.
 
-        API endpoint: GET /drive/v1/metas/root_folder_meta
+        API endpoint: GET /drive/explorer/v2/root_folder/meta
 
         Returns:
             Root folder token
@@ -303,10 +314,11 @@ class FeishuApiClient:
             >>> root_token = client.get_root_folder_token()
         """
         token = self.get_tenant_token()
-        url = f"{self.BASE_URL}/drive/v1/metas/root_folder_meta"
+        # Use the correct API endpoint (v2 explorer, not v1 drive)
+        url = f"{self.BASE_URL}/drive/explorer/v2/root_folder/meta"
         headers = {"Authorization": f"Bearer {token}"}
 
-        logger.info("Fetching root folder token")
+        logger.info("Fetching root folder token using v2 explorer API")
         response = self.session.get(url, headers=headers, timeout=10)
 
         if response.status_code != 200:
@@ -322,7 +334,10 @@ class FeishuApiClient:
                 f"Failed to get root folder: {result.get('msg', 'Unknown error')}"
             )
 
-        folder_token = result.get("data", {}).get("folder_token")
+        # Extract folder token from response
+        # The v2 API returns: { "data": { "token": "fldcnxxxxx" } }
+        data = result.get("data", {})
+        folder_token = data.get("token")
 
         if not folder_token:
             raise FeishuApiRequestError("No folder_token in root folder response")
@@ -330,11 +345,116 @@ class FeishuApiClient:
         logger.info(f"Root folder token: {folder_token}")
         return folder_token
 
-    def create_folder(
-        self,
-        name: str,
-        parent_token: Optional[str] = None
+    def get_current_user_id(self) -> str:
+        """
+        Get current user's ID from tenant info.
+
+        API endpoint: GET /contact/v3/users/batch_get_id
+
+        Returns:
+            Current user's open_id
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> user_id = client.get_current_user_id()
+            >>> print(f"Current user: {user_id}")
+        """
+        token = self.get_tenant_token()
+
+        # First, we need to get the user_id. Since we're using service account,
+        # we can get the current user by calling the permission API with our own auth.
+        # Alternative approach: Use the contact API to get user info.
+
+        # For simplicity, we'll use a different approach:
+        # Get user info from the permission list of a test document or use user info endpoint
+
+        # Actually, for a tenant access token (app), we need the user to provide their user_id
+        # or we can get it from the environment variable.
+        user_id = os.environ.get("FEISHU_USER_ID")
+
+        if user_id:
+            logger.debug(f"Using user_id from environment: {user_id}")
+            return user_id
+
+        # Try to get from user info endpoint (requires proper permissions)
+        url = f"{self.BASE_URL}/contact/v3/users/me"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info("Fetching current user info")
+        response = self.session.get(url, headers=headers, timeout=10)
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("code") == 0:
+                user_data = result.get("data", {}).get("user", {})
+                user_id = user_data.get("open_id")
+                if user_id:
+                    logger.info(f"Current user ID: {user_id}")
+                    return user_id
+
+        raise FeishuApiRequestError(
+            "Could not determine current user ID. Please set FEISHU_USER_ID environment variable.\n"
+            "You can find your user_id in Feishu: Settings > Profile > Copy User ID"
+        )
+
+    def set_document_permission(
+        self, document_id: str, user_id: str, permission: str = "edit", notify: bool = False
     ) -> Dict[str, Any]:
+        """
+        Set permission for a user on a document.
+
+        API endpoint: POST /docx/v1/documents/{doc_id}/permissions
+
+        Args:
+            document_id: Document ID (doxcnxxxxx)
+            user_id: User's open_id to grant permission to
+            permission: Permission level - "view", "edit", or "admin"
+            notify: Whether to notify the user
+
+        Returns:
+            {"success": true, "permission_id": "..."}
+
+        Raises:
+            FeishuApiRequestError: If permission setting fails
+
+        Example:
+            >>> client.set_document_permission("doxcnxxxxx", "ou_xxxxx", "edit")
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/permissions/invite"
+
+        # Build permission request
+        # Note: Feishu uses different API for permissions, using invite endpoint
+        payload = {
+            "invite_type": "userid",
+            "invite_messages": [{"user_id": user_id, "perm_type": permission, "notify": notify}],
+        }
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Setting {permission} permission for user {user_id} on document {document_id}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to set permission: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to set permission: {result.get('msg', 'Unknown error')}"
+            )
+
+        logger.info(f"Successfully set {permission} permission for user {user_id}")
+        return {"success": True, "permission": permission}
+
+    def create_folder(self, name: str, parent_token: Optional[str] = None) -> Dict[str, Any]:
         """
         Create a folder in Feishu Drive.
 
@@ -365,10 +485,7 @@ class FeishuApiClient:
 
         url = f"{self.BASE_URL}/drive/v1/folders"
 
-        payload = {
-            "name": name,
-            "folder_token": parent_token
-        }
+        payload = {"name": name, "folder_token": parent_token}
 
         headers = {"Authorization": f"Bearer {token}"}
 
@@ -396,14 +513,10 @@ class FeishuApiClient:
         return {
             "folder_token": folder_token,
             "name": folder_data.get("name", name),
-            "url": f"https://feishu.cn/drive/folder/{folder_token}"
+            "url": f"https://feishu.cn/drive/folder/{folder_token}",
         }
 
-    def list_folder_contents(
-        self,
-        folder_token: str,
-        page_size: int = 200
-    ) -> List[Dict[str, Any]]:
+    def list_folder_contents(self, folder_token: str, page_size: int = 200) -> List[Dict[str, Any]]:
         """
         List files and folders in a folder.
 
@@ -430,8 +543,8 @@ class FeishuApiClient:
         params = {
             "folder_token": folder_token,
             "page_size": page_size,
-            "order_by": "edited_time",
-            "direction": "desc"
+            "order_by": "EditedTime",  # Fixed: Capitalized according to API spec
+            "direction": "DESC"        # Fixed: Capitalized according to API spec
         }
 
         headers = {"Authorization": f"Bearer {token}"}
@@ -441,8 +554,7 @@ class FeishuApiClient:
 
         if response.status_code != 200:
             raise FeishuApiRequestError(
-                f"Failed to list folder: HTTP {response.status_code}\n"
-                f"Response: {response.text}"
+                f"Failed to list folder: HTTP {response.status_code}\n" f"Response: {response.text}"
             )
 
         result = response.json()
@@ -457,13 +569,260 @@ class FeishuApiClient:
 
         return items
 
+    def get_all_wiki_spaces(self, page_size: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get all wiki spaces (handles pagination automatically).
+
+        API endpoint: GET /wiki/v2/spaces
+
+        Args:
+            page_size: Number of items per page (default 20)
+
+        Returns:
+            List of all wiki spaces with metadata
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> spaces = client.get_all_wiki_spaces()
+            >>> for space in spaces:
+            ...     print(space["name"], space["space_id"])
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/wiki/v2/spaces"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        all_items = []
+        page_token = None
+        has_more = True
+
+        logger.info("Fetching all wiki spaces...")
+
+        while has_more:
+            params = {"page_size": page_size}
+            if page_token:
+                params["page_token"] = page_token
+
+            response = self.session.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                raise FeishuApiRequestError(
+                    f"Failed to get wiki spaces: HTTP {response.status_code}\n"
+                    f"Response: {response.text}"
+                )
+
+            result = response.json()
+
+            if result.get("code") != 0:
+                raise FeishuApiRequestError(
+                    f"Failed to get wiki spaces: {result.get('msg', 'Unknown error')}"
+                )
+
+            data = result.get("data", {})
+            items = data.get("items", [])
+            all_items.extend(items)
+
+            has_more = data.get("has_more", False)
+            page_token = data.get("page_token")
+
+            logger.debug(f"Fetched {len(items)} spaces, total: {len(all_items)}")
+
+        logger.info(f"Found {len(all_items)} wiki spaces total")
+        return all_items
+
+    def get_my_library(self, lang: str = "en") -> Dict[str, Any]:
+        """
+        Get "My Library" (personal knowledge base) information.
+
+        API endpoint: GET /wiki/v2/spaces/my_library
+
+        Args:
+            lang: Language code (default "en")
+
+        Returns:
+            My library space information
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> my_lib = client.get_my_library()
+            >>> print(f"My Library ID: {my_lib['space_id']}")
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/wiki/v2/spaces/my_library"
+        params = {"lang": lang}
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info("Fetching My Library info...")
+        response = self.session.get(url, params=params, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to get My Library: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to get My Library: {result.get('msg', 'Unknown error')}"
+            )
+
+        space_data = result.get("data", {}).get("space", {})
+        logger.info(f"My Library found: {space_data.get('name')}")
+
+        return space_data
+
+    def get_comprehensive_info(self) -> Dict[str, Any]:
+        """
+        Get comprehensive Feishu workspace information.
+
+        This combines multiple API calls to provide:
+        - Root folder info (user's cloud drive root)
+        - All wiki spaces
+        - My Library (personal knowledge base)
+
+        Similar to feishu-docker MCP's get_feishu_root_folder_info tool.
+
+        Returns:
+            Dictionary with root_folder, wiki_spaces, and my_library keys
+
+        Example:
+            >>> info = client.get_comprehensive_info()
+            >>> print(f"Root token: {info['root_folder']['token']}")
+            >>> print(f"Wiki spaces: {len(info['wiki_spaces'])}")
+        """
+        result = {
+            "root_folder": None,
+            "wiki_spaces": None,
+            "my_library": None,
+        }
+
+        # Get root folder info
+        try:
+            token = self.get_tenant_token()
+            import requests
+
+            url = f"{self.BASE_URL}/drive/explorer/v2/root_folder/meta"
+            headers = {"Authorization": f"Bearer {token}"}
+            response = requests.get(url, headers=headers, timeout=10)
+            data = response.json()
+
+            if data.get("code") == 0:
+                result["root_folder"] = data.get("data", {})
+            else:
+                result["root_folder"] = {"error": data.get("msg", "Unknown error")}
+        except Exception as e:
+            result["root_folder"] = {"error": str(e)}
+
+        # Get all wiki spaces
+        try:
+            result["wiki_spaces"] = self.get_all_wiki_spaces()
+        except Exception as e:
+            result["wiki_spaces"] = []
+            logger.error(f"Failed to get wiki spaces: {e}")
+
+        # Get My Library
+        try:
+            result["my_library"] = self.get_my_library()
+        except Exception as e:
+            result["my_library"] = {"error": str(e)}
+            logger.error(f"Failed to get My Library: {e}")
+
+        return result
+
+    def create_wiki_node(
+        self,
+        space_id: str,
+        title: str,
+        parent_node_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new wiki node (document) in a wiki space.
+
+        API endpoint: POST /wiki/v2/spaces/{space_id}/nodes
+
+        Args:
+            space_id: Wiki space ID (e.g., '7516222021840306180')
+            title: Node/document title
+            parent_node_token: Parent node token (optional, creates at root if not provided)
+
+        Returns:
+            Dictionary with node_token, obj_token (document_id), and other node info
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> # Create in "个人知识库" space at root
+            >>> node = client.create_wiki_node("7516222021840306180", "My Doc")
+            >>> print(f"Document ID: {node['obj_token']}")
+            >>>
+            >>> # Create as child of another node
+            >>> node = client.create_wiki_node(
+            ...     "7516222021840306180",
+            ...     "Child Doc",
+            ...     parent_node_token="nodcnxxxxx"
+            ... )
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/wiki/v2/spaces/{space_id}/nodes"
+        payload = {
+            "title": title,
+            "obj_type": "docx",
+            "node_type": "origin"
+        }
+
+        if parent_node_token:
+            payload["parent_node_token"] = parent_node_token
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Creating wiki node in space {space_id}: {title}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to create wiki node: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to create wiki node: {result.get('msg', 'Unknown error')}"
+            )
+
+        # Extract node info
+        node = result.get("data", {}).get("node", {})
+        node_token = node.get("node_token")
+        obj_token = node.get("obj_token")  # This is the document_id
+
+        logger.info(f"Wiki node created successfully: node_token={node_token}, obj_token={obj_token}")
+
+        return {
+            "node_token": node_token,
+            "obj_token": obj_token,
+            "document_id": obj_token,
+            "title": node.get("title", title),
+            "space_id": space_id,
+            "url": f"https://feishu.cn/wiki/{node_token}" if node_token else None
+        }
+
     def batch_create_blocks(
         self,
         doc_id: str,
         blocks: List[Dict[str, Any]],
         parent_id: Optional[str] = None,
         index: int = 0,
-        batch_size: int = 50
+        batch_size: int = 50,
     ) -> Dict[str, Any]:
         """
         Batch create blocks in a Feishu document.
@@ -544,16 +903,13 @@ class FeishuApiClient:
             endpoint = self.BLOCKS_ENDPOINT_TEMPLATE.format(doc_id=doc_id, parent_id=parent_id)
             url = f"{self.BASE_URL}{endpoint}?document_revision_id=-1"
 
-            payload = {
-                "children": children,
-                "index": current_index
-            }
+            payload = {"children": children, "index": current_index}
 
-            headers = {
-                "Authorization": f"Bearer {token}"
-            }
+            headers = {"Authorization": f"Bearer {token}"}
 
-            logger.info(f"Creating {len(children)} blocks in document {doc_id} (batch {batch_start//batch_size + 1})")
+            logger.info(
+                f"Creating {len(children)} blocks in document {doc_id} (batch {batch_start//batch_size + 1})"
+            )
             logger.debug(f"Request payload: {json.dumps(payload, ensure_ascii=False)[:500]}...")
 
             # Make request for this batch
@@ -562,7 +918,7 @@ class FeishuApiClient:
             if response.status_code != 200:
                 # Save payload for debugging
                 debug_file = "/tmp/feishu_error_payload.json"
-                with open(debug_file, 'w', encoding='utf-8') as f:
+                with open(debug_file, "w", encoding="utf-8") as f:
                     json.dump(payload, f, indent=2, ensure_ascii=False)
                 logger.error(f"Request payload saved to: {debug_file}")
 
@@ -593,15 +949,11 @@ class FeishuApiClient:
             "code": 0,
             "data": {},
             "image_block_ids": all_image_block_ids,
-            "total_blocks_created": len(blocks)
+            "total_blocks_created": len(blocks),
         }
 
     def upload_and_bind_image(
-        self,
-        doc_id: str,
-        block_id: str,
-        image_path_or_url: str,
-        file_name: Optional[str] = None
+        self, doc_id: str, block_id: str, image_path_or_url: str, file_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Upload an image and bind it to an existing image block.
@@ -632,11 +984,7 @@ class FeishuApiClient:
             file_token = image_path_or_url
         else:
             # Local file - read and upload
-            file_token = self._upload_image_file(
-                image_path_or_url,
-                file_name,
-                token
-            )
+            file_token = self._upload_image_file(image_path_or_url, file_name, token)
 
         # Step 2: Bind to block
         logger.info(f"Binding image to block {block_id}")
@@ -644,20 +992,15 @@ class FeishuApiClient:
         endpoint = f"/docx/v1/documents/{doc_id}/blocks/{block_id}/image"
         url = f"{self.BASE_URL}{endpoint}"
 
-        payload = {
-            "file_token": file_token
-        }
+        payload = {"file_token": file_token}
 
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
+        headers = {"Authorization": f"Bearer {token}"}
 
         response = self.session.put(url, json=payload, headers=headers, timeout=30)
 
         if response.status_code != 200:
             raise FeishuApiRequestError(
-                f"Failed to bind image: HTTP {response.status_code}\n"
-                f"Response: {response.text}"
+                f"Failed to bind image: HTTP {response.status_code}\n" f"Response: {response.text}"
             )
 
         result = response.json()
@@ -670,12 +1013,7 @@ class FeishuApiClient:
         logger.info(f"Successfully bound image to block {block_id}")
         return result
 
-    def _upload_image_file(
-        self,
-        file_path: str,
-        file_name: Optional[str],
-        token: str
-    ) -> str:
+    def _upload_image_file(self, file_path: str, file_name: Optional[str], token: str) -> str:
         """Upload local image file and return file_token"""
         path = Path(file_path)
 
@@ -692,6 +1030,7 @@ class FeishuApiClient:
 
         # Detect MIME type
         import mimetypes
+
         mime_type, _ = mimetypes.guess_type(file_name)
         if not mime_type:
             mime_type = "image/png"
@@ -699,13 +1038,9 @@ class FeishuApiClient:
         # Upload
         url = f"{self.BASE_URL}{self.IMAGE_UPLOAD_ENDPOINT}"
 
-        files = {
-            "file": (file_name, file_content, mime_type)
-        }
+        files = {"file": (file_name, file_content, mime_type)}
 
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
+        headers = {"Authorization": f"Bearer {token}"}
 
         # Remove Content-Type from session headers for multipart
         headers.pop("Content-Type", None)
@@ -754,25 +1089,22 @@ class FeishuApiClient:
             # Convert to Feishu API format
             if equation_content:
                 # Equation element
-                text_elements.append({
-                    "equation": equation_content
-                })
+                text_elements.append({"equation": equation_content})
             else:
                 # Text run element
                 text_element_style = self._convert_text_style(style.get("style", {}))
-                text_elements.append({
-                    "text_run": {
-                        "content": text_content,
-                        "text_element_style": text_element_style
+                text_elements.append(
+                    {
+                        "text_run": {
+                            "content": text_content,
+                            "text_element_style": text_element_style,
+                        }
                     }
-                })
+                )
 
         return {
             "block_type": 2,  # Text block type
-            "text": {
-                "elements": text_elements,
-                "style": {"align": align}
-            }
+            "text": {"elements": text_elements, "style": {"align": align}},
         }
 
     def _format_heading_block(self, block_type: str, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -796,20 +1128,22 @@ class FeishuApiClient:
         return {
             "block_type": feishu_block_type,
             heading_field: {
-                "elements": [{
-                    "text_run": {
-                        "content": content,
-                        "text_element_style": {
-                            "bold": False,
-                            "italic": False,
-                            "strikethrough": False,
-                            "underline": False,
-                            "inline_code": False
+                "elements": [
+                    {
+                        "text_run": {
+                            "content": content,
+                            "text_element_style": {
+                                "bold": False,
+                                "italic": False,
+                                "strikethrough": False,
+                                "underline": False,
+                                "inline_code": False,
+                            },
                         }
                     }
-                }],
-                "style": {"align": align}
-            }
+                ],
+                "style": {"align": align},
+            },
         }
 
     def _format_code_block(self, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -822,23 +1156,22 @@ class FeishuApiClient:
         return {
             "block_type": 14,  # Code block type
             "code": {
-                "elements": [{
-                    "text_run": {
-                        "content": code,
-                        "text_element_style": {
-                            "bold": False,
-                            "italic": False,
-                            "strikethrough": False,
-                            "underline": False,
-                            "inline_code": False
+                "elements": [
+                    {
+                        "text_run": {
+                            "content": code,
+                            "text_element_style": {
+                                "bold": False,
+                                "italic": False,
+                                "strikethrough": False,
+                                "underline": False,
+                                "inline_code": False,
+                            },
                         }
                     }
-                }],
-                "style": {
-                    "language": language,
-                    "wrap": wrap
-                }
-            }
+                ],
+                "style": {"language": language, "wrap": wrap},
+            },
         }
 
     def _format_list_block(self, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -855,20 +1188,22 @@ class FeishuApiClient:
         return {
             "block_type": block_type,
             list_field: {
-                "elements": [{
-                    "text_run": {
-                        "content": content,
-                        "text_element_style": {
-                            "bold": False,
-                            "italic": False,
-                            "strikethrough": False,
-                            "underline": False,
-                            "inline_code": False
+                "elements": [
+                    {
+                        "text_run": {
+                            "content": content,
+                            "text_element_style": {
+                                "bold": False,
+                                "italic": False,
+                                "strikethrough": False,
+                                "underline": False,
+                                "inline_code": False,
+                            },
                         }
                     }
-                }],
-                "style": {"align": align}
-            }
+                ],
+                "style": {"align": align},
+            },
         }
 
     def _format_image_block(self, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -876,12 +1211,7 @@ class FeishuApiClient:
         image_config = options.get("image", {})
         align = image_config.get("align", 2)  # Default center
 
-        return {
-            "block_type": 27,  # Image block type (from MCP source)
-            "image": {
-                "align": align
-            }
-        }
+        return {"block_type": 27, "image": {"align": align}}  # Image block type (from MCP source)
 
     def _convert_text_style(self, style: Dict[str, Any]) -> Dict[str, Any]:
         """Convert text style from md-to-feishu format to API format"""
@@ -891,7 +1221,7 @@ class FeishuApiClient:
             "italic": style.get("italic", False),
             "underline": style.get("underline", False),
             "strikethrough": style.get("strikethrough", False),
-            "inline_code": style.get("inline_code", False)
+            "inline_code": style.get("inline_code", False),
         }
 
         # Text color (optional)
@@ -906,11 +1236,7 @@ class FeishuApiClient:
 
         return api_style
 
-    def _extract_image_block_ids(
-        self,
-        result: Dict[str, Any],
-        indices: List[int]
-    ) -> List[str]:
+    def _extract_image_block_ids(self, result: Dict[str, Any], indices: List[int]) -> List[str]:
         """Extract image block IDs from API response"""
         block_ids = []
 
@@ -929,10 +1255,7 @@ class FeishuApiClient:
 
 
 def upload_markdown_to_feishu(
-    md_file: str,
-    doc_id: str,
-    app_id: Optional[str] = None,
-    app_secret: Optional[str] = None
+    md_file: str, doc_id: str, app_id: Optional[str] = None, app_secret: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Convenience function to upload Markdown file to Feishu.
@@ -964,10 +1287,7 @@ def upload_markdown_to_feishu(
 
     # Step 1: Convert Markdown to blocks
     logger.info(f"Converting Markdown file: {md_file}")
-    converter = MarkdownToFeishuConverter(
-        md_file=Path(md_file),
-        doc_id=doc_id
-    )
+    converter = MarkdownToFeishuConverter(md_file=Path(md_file), doc_id=doc_id)
 
     conversion_result = converter.convert()
 
@@ -997,11 +1317,7 @@ def upload_markdown_to_feishu(
 
         logger.info(f"Uploading batch {batch_index + 1}/{len(all_batches)}")
 
-        result = client.batch_create_blocks(
-            doc_id=doc_id,
-            blocks=blocks,
-            index=start_index
-        )
+        result = client.batch_create_blocks(doc_id=doc_id, blocks=blocks, index=start_index)
 
         total_blocks += result.get("total_blocks_created", 0)
 
@@ -1026,9 +1342,7 @@ def upload_markdown_to_feishu(
 
                 try:
                     client.upload_and_bind_image(
-                        doc_id=doc_id,
-                        block_id=block_id,
-                        image_path_or_url=local_path
+                        doc_id=doc_id, block_id=block_id, image_path_or_url=local_path
                     )
                     total_images += 1
                 except Exception as e:
@@ -1042,7 +1356,7 @@ def upload_markdown_to_feishu(
         "document_url": f"https://feishu.cn/docx/{doc_id}",
         "total_blocks": total_blocks,
         "total_images": total_images,
-        "total_batches": len(all_batches)
+        "total_batches": len(all_batches),
     }
 
 
@@ -1051,7 +1365,10 @@ def create_document_from_markdown(
     title: Optional[str] = None,
     folder_token: Optional[str] = None,
     app_id: Optional[str] = None,
-    app_secret: Optional[str] = None
+    app_secret: Optional[str] = None,
+    add_permission: bool = False,
+    user_id: Optional[str] = None,
+    permission_level: str = "edit",
 ) -> Dict[str, Any]:
     """
     Create a new Feishu document and upload markdown content to it.
@@ -1063,6 +1380,7 @@ def create_document_from_markdown(
     2. Convert markdown to blocks
     3. Upload blocks to new document
     4. Upload images if any
+    5. Optionally set permissions for current user
 
     Args:
         md_file: Path to markdown file
@@ -1070,6 +1388,9 @@ def create_document_from_markdown(
         folder_token: Parent folder (default: root)
         app_id: Feishu app ID (or use FEISHU_APP_ID env var)
         app_secret: Feishu app secret (or use FEISHU_APP_SECRET env var)
+        add_permission: Whether to add edit permission for current user
+        user_id: User ID to grant permission to (default: auto-detect or from FEISHU_USER_ID)
+        permission_level: Permission level - "view", "edit", or "admin" (default: "edit")
 
     Returns:
         {
@@ -1079,7 +1400,8 @@ def create_document_from_markdown(
             "title": "Document Title",
             "total_blocks": 50,
             "total_images": 3,
-            "total_batches": 1
+            "total_batches": 1,
+            "permission_set": True  # If add_permission=True
         }
 
     Raises:
@@ -1090,6 +1412,9 @@ def create_document_from_markdown(
         >>> result = create_document_from_markdown("README.md", title="My Document")
         >>> print(f"Created: {result['document_url']}")
         >>> print(f"Blocks: {result['total_blocks']}")
+
+        >>> # With permission for current user
+        >>> result = create_document_from_markdown("README.md", add_permission=True)
     """
     # Step 1: Create document
     if app_id and app_secret:
@@ -1101,20 +1426,51 @@ def create_document_from_markdown(
     if title is None:
         title = Path(md_file).stem
 
-    doc_result = client.create_document(title=title, folder_token=folder_token)
+    # Determine folder token: use provided folder, default folder, or None (app space)
+    effective_folder_token = folder_token
+    if effective_folder_token is None:
+        # Try to use default folder from environment variable
+        # This allows users to specify their personal cloud document folder
+        effective_folder_token = client.get_default_folder_token()
+        if effective_folder_token:
+            logger.info(f"Using default folder from environment: {effective_folder_token}")
+        else:
+            logger.warning(
+                "No folder_token specified and FEISHU_DEFAULT_FOLDER_TOKEN not set. "
+                "Document will be created in application space (only app has access). "
+                "Set FEISHU_DEFAULT_FOLDER_TOKEN to your cloud document folder token to fix this."
+            )
+
+    doc_result = client.create_document(title=title, folder_token=effective_folder_token)
     doc_id = doc_result["document_id"]
 
     # Step 2: Upload content to new document
     logger.info(f"Uploading content to new document: {doc_id}")
 
     upload_result = upload_markdown_to_feishu(
-        md_file=md_file,
-        doc_id=doc_id,
-        app_id=app_id,
-        app_secret=app_secret
+        md_file=md_file, doc_id=doc_id, app_id=app_id, app_secret=app_secret
     )
 
-    # Step 3: Return combined result
+    # Step 3: Set permission if requested
+    permission_set = False
+    if add_permission:
+        try:
+            # Get user ID if not provided
+            if user_id is None:
+                user_id = client.get_current_user_id()
+
+            client.set_document_permission(
+                document_id=doc_id, user_id=user_id, permission=permission_level, notify=False
+            )
+            permission_set = True
+            logger.info(f"Successfully set {permission_level} permission for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to set permission: {e}")
+            logger.warning(
+                "You may need to manually set permissions in Feishu or set FEISHU_USER_ID environment variable"
+            )
+
+    # Step 4: Return combined result
     return {
         "success": True,
         "document_id": doc_id,
@@ -1122,7 +1478,8 @@ def create_document_from_markdown(
         "title": doc_result["title"],
         "total_blocks": upload_result.get("total_blocks", 0),
         "total_images": upload_result.get("total_images", 0),
-        "total_batches": upload_result.get("total_batches", 0)
+        "total_batches": upload_result.get("total_batches", 0),
+        "permission_set": permission_set,
     }
 
 
@@ -1131,7 +1488,7 @@ def batch_create_documents_from_folder(
     feishu_folder_token: Optional[str] = None,
     pattern: str = "*.md",
     app_id: Optional[str] = None,
-    app_secret: Optional[str] = None
+    app_secret: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Batch create Feishu documents from local folder.
@@ -1201,7 +1558,7 @@ def batch_create_documents_from_folder(
             "successful": 0,
             "failed": 0,
             "documents": [],
-            "failures": []
+            "failures": [],
         }
 
     # Step 3: Initialize client
@@ -1223,25 +1580,24 @@ def batch_create_documents_from_folder(
                 title=md_file.stem,
                 folder_token=feishu_folder_token,
                 app_id=app_id,
-                app_secret=app_secret
+                app_secret=app_secret,
             )
 
-            documents.append({
-                "file": md_file.name,
-                "document_id": result["document_id"],
-                "url": result["document_url"],
-                "blocks": result.get("total_blocks", 0),
-                "images": result.get("total_images", 0)
-            })
+            documents.append(
+                {
+                    "file": md_file.name,
+                    "document_id": result["document_id"],
+                    "url": result["document_url"],
+                    "blocks": result.get("total_blocks", 0),
+                    "images": result.get("total_images", 0),
+                }
+            )
 
             logger.info(f"✅ Created: {md_file.name}")
 
         except Exception as e:
             error_msg = str(e)
-            failures.append({
-                "file": md_file.name,
-                "error": error_msg
-            })
+            failures.append({"file": md_file.name, "error": error_msg})
             logger.error(f"❌ Failed: {md_file.name}: {error_msg}")
 
     # Step 5: Return summary
@@ -1251,5 +1607,5 @@ def batch_create_documents_from_folder(
         "successful": len(documents),
         "failed": len(failures),
         "documents": documents,
-        "failures": failures
+        "failures": failures,
     }

@@ -78,6 +78,20 @@ python scripts/create_feishu_doc.py README.md --title "My Document"
 python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 ```
 
+> **⚠️ 重要提示**：默认情况下，新文档会创建在应用空间（只有应用有权限）。
+>
+> **解决方案**：设置 `FEISHU_DEFAULT_FOLDER_TOKEN` 环境变量，指向你的云文档文件夹：
+>
+> ```bash
+> # 在 .env 文件中添加
+> FEISHU_DEFAULT_FOLDER_TOKEN=fldcnxxxxx
+> ```
+>
+> 如何获取文件夹 token：
+> 1. 在飞书中打开你的云文档文件夹
+> 2. 从 URL 复制文件夹 token（例如：`https://feishu.cn/drive/folder/fldcnxxxxx`）
+> 3. 只需要 `fldcnxxxxx` 部分
+
 #### 方式3：批量迁移
 
 ```bash

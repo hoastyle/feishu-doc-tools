@@ -17,6 +17,15 @@ Usage Examples:
     # Create with custom credentials
     python scripts/create_feishu_doc.py README.md --app-id cli_xxxxx --app-secret xxxxx
 
+    # Create and add edit permission for current user
+    python scripts/create_feishu_doc.py README.md --add-permission
+
+    # Create with admin permission
+    python scripts/create_feishu_doc.py README.md --add-permission --permission-level admin
+
+    # Create with permission for specific user
+    python scripts/create_feishu_doc.py README.md --add-permission --user-id ou_xxxxx
+
     # Show progress (already enabled by default)
     python scripts/create_feishu_doc.py README.md -v
 
@@ -24,8 +33,18 @@ Features:
     - Creates new Feishu document with markdown content
     - Uploads images automatically
     - Supports folder targeting
+    - Optional permission setting for users
     - Detailed logging and progress reporting
     - Error handling with helpful messages
+
+Permission Setup:
+    By default, created documents are only accessible to the app. To grant access:
+    1. Use --add-permission flag to auto-grant edit permission to current user
+    2. Set FEISHU_USER_ID environment variable with your user ID
+    3. Or use --user-id to specify the user ID directly
+
+    To find your user ID in Feishu:
+    - Go to Settings > Profile > Copy User ID
 """
 
 import sys
@@ -36,17 +55,11 @@ from pathlib import Path
 # Add parent directory to path so we can import lib modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from lib.feishu_api_client import (
-    create_document_from_markdown,
-    FeishuApiClientError
-)
+from lib.feishu_api_client import create_document_from_markdown, FeishuApiClientError
 
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -69,47 +82,56 @@ Examples:
   # Use custom credentials
   python scripts/create_feishu_doc.py README.md \\
     --app-id cli_xxxxx --app-secret xxxxx
-        """
+        """,
     )
 
-    parser.add_argument(
-        "md_file",
-        type=Path,
-        help="Path to markdown file to upload"
-    )
+    parser.add_argument("md_file", type=Path, help="Path to markdown file to upload")
 
     parser.add_argument(
         "--title",
         type=str,
         default=None,
-        help="Document title (default: filename without extension)"
+        help="Document title (default: filename without extension)",
     )
 
     parser.add_argument(
-        "--folder",
-        type=str,
-        default=None,
-        help="Target folder token (default: root folder)"
+        "--folder", type=str, default=None, help="Target folder token (default: root folder)"
     )
 
     parser.add_argument(
-        "--app-id",
-        type=str,
-        default=None,
-        help="Feishu app ID (or set FEISHU_APP_ID env var)"
+        "--app-id", type=str, default=None, help="Feishu app ID (or set FEISHU_APP_ID env var)"
     )
 
     parser.add_argument(
         "--app-secret",
         type=str,
         default=None,
-        help="Feishu app secret (or set FEISHU_APP_SECRET env var)"
+        help="Feishu app secret (or set FEISHU_APP_SECRET env var)",
     )
 
     parser.add_argument(
-        "-v", "--verbose",
+        "-v", "--verbose", action="store_true", help="Enable verbose output (debug logging)"
+    )
+
+    parser.add_argument(
+        "--add-permission",
         action="store_true",
-        help="Enable verbose output (debug logging)"
+        help="Add edit permission for current user after creating document",
+    )
+
+    parser.add_argument(
+        "--user-id",
+        type=str,
+        default=None,
+        help="User ID to grant permission to (default: auto-detect or from FEISHU_USER_ID env var)",
+    )
+
+    parser.add_argument(
+        "--permission-level",
+        type=str,
+        default="edit",
+        choices=["view", "edit", "admin"],
+        help="Permission level: view, edit, or admin (default: edit)",
     )
 
     args = parser.parse_args()
@@ -139,20 +161,25 @@ Examples:
             title=args.title,
             folder_token=args.folder,
             app_id=args.app_id,
-            app_secret=args.app_secret
+            app_secret=args.app_secret,
+            add_permission=args.add_permission,
+            user_id=args.user_id,
+            permission_level=args.permission_level,
         )
 
         # Print results
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ Document Created Successfully")
-        print("="*60)
-        print(f"Title:         {result['title']}")
-        print(f"Document ID:   {result['document_id']}")
-        print(f"URL:           {result['document_url']}")
-        print(f"Blocks:        {result['total_blocks']}")
-        print(f"Images:        {result['total_images']}")
-        print(f"Batches:       {result['total_batches']}")
-        print("="*60)
+        print("=" * 60)
+        print(f"Title:           {result['title']}")
+        print(f"Document ID:     {result['document_id']}")
+        print(f"URL:             {result['document_url']}")
+        print(f"Blocks:          {result['total_blocks']}")
+        print(f"Images:          {result['total_images']}")
+        print(f"Batches:         {result['total_batches']}")
+        if result.get("permission_set"):
+            print(f"Permission:      ✅ {args.permission_level} permission set for user")
+        print("=" * 60)
 
         return 0
 
@@ -168,6 +195,7 @@ Examples:
         logger.error(f"Unexpected error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 3
 
