@@ -544,7 +544,7 @@ class FeishuApiClient:
             "folder_token": folder_token,
             "page_size": page_size,
             "order_by": "EditedTime",  # Fixed: Capitalized according to API spec
-            "direction": "DESC"        # Fixed: Capitalized according to API spec
+            "direction": "DESC",  # Fixed: Capitalized according to API spec
         }
 
         headers = {"Authorization": f"Bearer {token}"}
@@ -631,6 +631,74 @@ class FeishuApiClient:
 
         logger.info(f"Found {len(all_items)} wiki spaces total")
         return all_items
+
+    def create_wiki_space(self, name: str, description: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Create a new wiki space.
+
+        API endpoint: POST /wiki/v2/spaces
+
+        Args:
+            name: Wiki space name
+            description: Wiki space description (optional)
+
+        Returns:
+            Dictionary with space_id and other space information
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> # Create a basic wiki space
+            >>> space = client.create_wiki_space("My Project")
+            >>> print(f"Space ID: {space['space_id']}")
+            >>>
+            >>> # Create with description
+            >>> space = client.create_wiki_space(
+            ...     "Technical Documentation",
+            ...     description="Documentation for internal projects"
+            ... )
+            >>> print(f"Created space: {space['name']} ({space['space_id']})")
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/wiki/v2/spaces"
+        payload = {"name": name}
+
+        if description:
+            payload["description"] = description
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Creating wiki space: {name}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to create wiki space: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to create wiki space: {result.get('msg', 'Unknown error')}"
+            )
+
+        # Extract space info
+        space_data = result.get("data", {}).get("space", {})
+        space_id = space_data.get("space_id")
+
+        logger.info(f"Wiki space created successfully: {name} (space_id={space_id})")
+
+        return {
+            "space_id": space_id,
+            "name": space_data.get("name", name),
+            "description": space_data.get("description", description),
+            "url": f"https://feishu.cn/wiki/{space_id}" if space_id else None,
+            **space_data,  # Include all other fields from the API response
+        }
 
     def get_my_library(self, lang: str = "en") -> Dict[str, Any]:
         """
@@ -737,10 +805,7 @@ class FeishuApiClient:
         return result
 
     def create_wiki_node(
-        self,
-        space_id: str,
-        title: str,
-        parent_node_token: Optional[str] = None
+        self, space_id: str, title: str, parent_node_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a new wiki node (document) in a wiki space.
@@ -773,11 +838,7 @@ class FeishuApiClient:
         token = self.get_tenant_token()
 
         url = f"{self.BASE_URL}/wiki/v2/spaces/{space_id}/nodes"
-        payload = {
-            "title": title,
-            "obj_type": "docx",
-            "node_type": "origin"
-        }
+        payload = {"title": title, "obj_type": "docx", "node_type": "origin"}
 
         if parent_node_token:
             payload["parent_node_token"] = parent_node_token
@@ -805,7 +866,9 @@ class FeishuApiClient:
         node_token = node.get("node_token")
         obj_token = node.get("obj_token")  # This is the document_id
 
-        logger.info(f"Wiki node created successfully: node_token={node_token}, obj_token={obj_token}")
+        logger.info(
+            f"Wiki node created successfully: node_token={node_token}, obj_token={obj_token}"
+        )
 
         return {
             "node_token": node_token,
@@ -813,7 +876,7 @@ class FeishuApiClient:
             "document_id": obj_token,
             "title": node.get("title", title),
             "space_id": space_id,
-            "url": f"https://feishu.cn/wiki/{node_token}" if node_token else None
+            "url": f"https://feishu.cn/wiki/{node_token}" if node_token else None,
         }
 
     def batch_create_blocks(
@@ -880,8 +943,10 @@ class FeishuApiClient:
             # Handle tables separately
             if block_type == "table":
                 options = block.get("options", {})
-                table_config = options.get('table', {})
-                logger.info(f"Creating table at index {current_index}: {table_config.get('rowSize')}x{table_config.get('columnSize')}")
+                table_config = options.get("table", {})
+                logger.info(
+                    f"Creating table at index {current_index}: {table_config.get('rowSize')}x{table_config.get('columnSize')}"
+                )
                 self.create_table_block(doc_id, table_config, parent_id, current_index)
                 current_index += 1
                 i += 1
@@ -931,9 +996,7 @@ class FeishuApiClient:
 
             headers = {"Authorization": f"Bearer {token}"}
 
-            logger.info(
-                f"Creating {len(children)} blocks at index {current_index}"
-            )
+            logger.info(f"Creating {len(children)} blocks at index {current_index}")
             logger.debug(f"Request payload: {json.dumps(payload, ensure_ascii=False)[:500]}...")
 
             # Make request for this batch
@@ -1242,7 +1305,7 @@ class FeishuApiClient:
         doc_id: str,
         table_config: Dict[str, Any],
         parent_id: Optional[str] = None,
-        index: int = 0
+        index: int = 0,
     ) -> Dict[str, Any]:
         """
         Create a table block in a Feishu document using the descendants API.
@@ -1277,12 +1340,13 @@ class FeishuApiClient:
         if parent_id is None:
             parent_id = doc_id
 
-        column_size = table_config.get('columnSize', 0)
-        row_size = table_config.get('rowSize', 0)
-        cells_config = table_config.get('cells', [])
+        column_size = table_config.get("columnSize", 0)
+        row_size = table_config.get("rowSize", 0)
+        cells_config = table_config.get("cells", [])
 
         # 生成唯一 ID
         import time
+
         table_id = f"table_{int(time.time() * 1000)}"
 
         # 创建 descendants 数组
@@ -1293,13 +1357,8 @@ class FeishuApiClient:
         table_block = {
             "block_id": table_id,
             "block_type": 31,  # 表格
-            "table": {
-                "property": {
-                    "row_size": row_size,
-                    "column_size": column_size
-                }
-            },
-            "children": []
+            "table": {"property": {"row_size": row_size, "column_size": column_size}},
+            "children": [],
         }
 
         # 创建所有单元格
@@ -1311,36 +1370,30 @@ class FeishuApiClient:
                 # 查找该单元格的配置
                 cell_config = None
                 for cfg in cells_config:
-                    coord = cfg.get('coordinate', {})
-                    if coord.get('row') == row and coord.get('column') == col:
+                    coord = cfg.get("coordinate", {})
+                    if coord.get("row") == row and coord.get("column") == col:
                         cell_config = cfg
                         break
 
                 # 创建单元格内容
                 if cell_config:
-                    content = cell_config.get('content', {})
-                    block_type = content.get('blockType', 'text')
-                    options = content.get('options', {})
+                    content = cell_config.get("content", {})
+                    block_type = content.get("blockType", "text")
+                    options = content.get("options", {})
 
                     # 格式化内容块
-                    if block_type == 'text':
+                    if block_type == "text":
                         content_block = self._format_text_block(options)
                     else:
                         # 默认使用空文本
-                        content_block = self._format_text_block({
-                            'text': {
-                                'textStyles': [{'text': '', 'style': {}}],
-                                'align': 1
-                            }
-                        })
+                        content_block = self._format_text_block(
+                            {"text": {"textStyles": [{"text": "", "style": {}}], "align": 1}}
+                        )
                 else:
                     # 空单元格
-                    content_block = self._format_text_block({
-                        'text': {
-                            'textStyles': [{'text': '', 'style': {}}],
-                            'align': 1
-                        }
-                    })
+                    content_block = self._format_text_block(
+                        {"text": {"textStyles": [{"text": "", "style": {}}], "align": 1}}
+                    )
 
                 # 单元格内容 ID
                 cell_content_id = f"{cell_id}_content"
@@ -1350,15 +1403,11 @@ class FeishuApiClient:
                     "block_id": cell_id,
                     "block_type": 32,  # 表格单元格
                     "table_cell": {},
-                    "children": [cell_content_id]
+                    "children": [cell_content_id],
                 }
 
                 # 创建单元格内容块
-                cell_content_block = {
-                    "block_id": cell_content_id,
-                    **content_block,
-                    "children": []
-                }
+                cell_content_block = {"block_id": cell_content_id, **content_block, "children": []}
 
                 descendants.append(cell_block)
                 descendants.append(cell_content_block)
@@ -1370,18 +1419,18 @@ class FeishuApiClient:
         descendants.insert(0, table_block)
 
         # 构建请求
-        endpoint = f"/docx/v1/documents/{doc_id}/blocks/{parent_id}/descendant?document_revision_id=-1"
+        endpoint = (
+            f"/docx/v1/documents/{doc_id}/blocks/{parent_id}/descendant?document_revision_id=-1"
+        )
         url = f"{self.BASE_URL}{endpoint}"
 
-        payload = {
-            "children_id": [table_id],
-            "descendants": descendants,
-            "index": index
-        }
+        payload = {"children_id": [table_id], "descendants": descendants, "index": index}
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        logger.info(f"Creating table: {row_size}x{column_size} with {len(cells_config)} configured cells")
+        logger.info(
+            f"Creating table: {row_size}x{column_size} with {len(cells_config)} configured cells"
+        )
         logger.debug(f"Table payload size: {len(json.dumps(payload))} bytes")
 
         response = self.session.post(url, json=payload, headers=headers, timeout=60)

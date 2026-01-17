@@ -310,7 +310,7 @@ uv run pytest --cov=scripts --cov=lib tests/
 - [x] 批量操作指南（BATCH_OPERATIONS.md）
 
 ### Phase 3：高级功能 🚧 部分完成
-- [x] Wiki操作API（get_all_wiki_spaces, get_my_library, create_wiki_node）
+- [x] Wiki操作API（get_all_wiki_spaces, get_my_library, create_wiki_space, create_wiki_node）
 - [x] 个人知识库自动检测（--personal flag）
 - [x] 用户权限自动设置（--auto-permission flag）
 - [ ] Bitable操作API（create_bitable, create_table）
@@ -326,7 +326,8 @@ uv run pytest --cov=scripts --cov=lib tests/
 **测试覆盖**：
 ```bash
 $ uv run pytest tests/
-======================== 25 passed in 1.23s =========================
+======================= 32 passed, 1 skipped in 1.82s =======================
+测试覆盖率：29%（新增 Wiki 空间创建测试）
 ```
 
 **MVP功能**：

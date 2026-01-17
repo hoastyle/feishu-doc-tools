@@ -350,6 +350,104 @@ class TestHighLevelFunctions:
         assert len(result["failures"]) == 1
 
 
+class TestWikiSpaceOperations:
+    """Tests for Wiki space operations."""
+
+    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
+    @patch('requests.Session.post')
+    def test_create_wiki_space_success(self, mock_post, mock_token, mock_client):
+        """Test successful wiki space creation."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "msg": "success",
+            "data": {
+                "space": {
+                    "space_id": "7516222021840306180",
+                    "name": "Test Space",
+                    "description": "Test Description",
+                    "visibility": "public"
+                }
+            }
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        result = mock_client.create_wiki_space("Test Space", "Test Description")
+
+        # Assert
+        assert result["space_id"] == "7516222021840306180"
+        assert result["name"] == "Test Space"
+        assert result["description"] == "Test Description"
+        assert result["url"] == "https://feishu.cn/wiki/7516222021840306180"
+        mock_post.assert_called_once()
+
+    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
+    @patch('requests.Session.post')
+    def test_create_wiki_space_without_description(self, mock_post, mock_token, mock_client):
+        """Test creating wiki space without description."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "msg": "success",
+            "data": {
+                "space": {
+                    "space_id": "7516222021840306180",
+                    "name": "Test Space"
+                }
+            }
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        result = mock_client.create_wiki_space("Test Space")
+
+        # Assert
+        assert result["space_id"] == "7516222021840306180"
+        assert result["name"] == "Test Space"
+        assert result["description"] is None
+        mock_post.assert_called_once()
+
+    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
+    @patch('requests.Session.post')
+    def test_create_wiki_space_api_error(self, mock_post, mock_token, mock_client):
+        """Test API error handling."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 99991663,
+            "msg": "Space name already exists"
+        }
+        mock_post.return_value = mock_response
+
+        # Execute & Assert
+        with pytest.raises(FeishuApiRequestError, match="Space name already exists"):
+            mock_client.create_wiki_space("Duplicate Space")
+
+    @patch('lib.feishu_api_client.FeishuApiClient.get_tenant_token')
+    @patch('requests.Session.post')
+    def test_create_wiki_space_http_error(self, mock_post, mock_token, mock_client):
+        """Test HTTP error handling."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+        mock_post.return_value = mock_response
+
+        # Execute & Assert
+        with pytest.raises(FeishuApiRequestError, match="HTTP 500"):
+            mock_client.create_wiki_space("Test Space")
+
+
 class TestErrorHandling:
     """Tests for error handling."""
 
