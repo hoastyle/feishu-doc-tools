@@ -1,4 +1,4 @@
-# md-to-feishu 文档中心
+# feishu-doc-tools 文档中心
 
 > 🎯 **快速导航** | 按使用场景查找功能 | 📚 **完整文档** | 深入了解技术细节
 
@@ -203,7 +203,7 @@ uv run python scripts/md_to_feishu.py 大文档.md --parallel
 ```
 
 **使用建议**:
-- **批量创建/迁移**: 使用 md-to-feishu（本工具）
+- **批量创建/迁移**: 使用 feishu-doc-tools（本工具）
 - **内容更新/修改**: 使用 Feishu-MCP
 - **混合模式**: 先用本工具创建，再用 MCP 维护
 
@@ -211,12 +211,12 @@ uv run python scripts/md_to_feishu.py 大文档.md --parallel
 
 ## 📊 功能对比表
 
-| 功能 | md-to-feishu | Feishu-MCP | 推荐使用 |
+| 功能 | feishu-doc-tools | Feishu-MCP | 推荐使用 |
 |------|--------------|------------|---------|
-| 批量创建文档 | ✅ 原生支持 | ⚠️ 需要循环 | md-to-feishu |
-| 批量上传文件夹 | ✅ 原生支持 | ⚠️ 需要循环 | md-to-feishu |
-| 表格转 Bitable | ✅ 专门工具 | ❌ 不支持 | md-to-feishu |
-| 大文档上传 | ✅ 并行优化 | ⚠️ 较慢 | md-to-feishu |
+| 批量创建文档 | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
+| 批量上传文件夹 | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
+| 表格转 Bitable | ✅ 专门工具 | ❌ 不支持 | feishu-doc-tools |
+| 大文档上传 | ✅ 并行优化 | ⚠️ 较慢 | feishu-doc-tools |
 | AI 辅助编辑 | ❌ 不支持 | ✅ 核心功能 | Feishu-MCP |
 | 智能修改 | ❌ 不支持 | ✅ 核心功能 | Feishu-MCP |
 | 交互式操作 | ❌ CLI 工具 | ✅ 对话式 | Feishu-MCP |

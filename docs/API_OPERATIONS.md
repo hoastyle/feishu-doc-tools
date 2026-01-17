@@ -1,10 +1,10 @@
 # Feishu API Operations - Reference Guide
 
-This document provides comprehensive reference for all Feishu API operations available in md-to-feishu.
+This document provides comprehensive reference for all Feishu API operations available in feishu-doc-tools.
 
 ## Overview
 
-md-to-feishu now supports both **upload** and **create** operations:
+feishu-doc-tools now supports both **upload** and **create** operations:
 
 | Operation | Purpose | API Endpoint | Best For |
 |-----------|---------|--------------|----------|

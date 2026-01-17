@@ -1,5 +1,5 @@
 """
-Feishu API Client - Direct API integration for md-to-feishu
+Feishu API Client - Direct API integration for feishu-doc-tools
 
 This module provides direct access to Feishu (Lark) Open API without going through MCP.
 For the "direct upload without modification" use case, this is more efficient than MCP.
@@ -2142,7 +2142,7 @@ class FeishuApiClient:
         return result
 
     def _convert_text_style(self, style: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert text style from md-to-feishu format to API format"""
+        """Convert text style from Markdown to API format"""
         # Feishu API requires all style fields to be present
         api_style = {
             "bold": style.get("bold", False),

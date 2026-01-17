@@ -1,10 +1,10 @@
 # Performance Optimization Guide
 
-This guide covers the performance optimizations implemented in md-to-feishu and how to use them effectively.
+This guide covers the performance optimizations implemented in feishu-doc-tools and how to use them effectively.
 
 ## Overview
 
-md-to-feishu now supports parallel uploads for significantly improved performance when uploading large documents with many blocks and images.
+feishu-doc-tools now supports parallel uploads for significantly improved performance when uploading large documents with many blocks and images.
 
 ### Performance Improvements
 

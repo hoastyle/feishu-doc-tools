@@ -1,6 +1,6 @@
-# Project Index: md-to-feishu
+# Project Index: feishu-doc-tools
 
-**Generated**: 2026-01-17
+**Generated**: 2026-01-18
 **Project Type**: Python Tool
 **Status**: ✅ Production Ready
 
@@ -9,7 +9,7 @@
 ## 📁 Project Structure
 
 ```
-md-to-feishu/
+feishu-doc-tools/
 ├── scripts/                  # 核心转换脚本
 │   ├── __init__.py
 │   └── md_to_feishu.py      # Markdown → JSON转换器（558行）
@@ -249,7 +249,7 @@ mypy>=1.0.0
 ### 安装
 ```bash
 # 1. 克隆或进入项目
-cd md-to-feishu
+cd feishu-doc-tools  # 或实际的项目文件夹名称
 
 # 2. 安装依赖
 uv sync

@@ -1,5 +1,5 @@
 """
-Performance benchmarks for md-to-feishu.
+Performance benchmarks for feishu-doc-tools.
 
 These tests measure upload performance with and without parallelization.
 Run with: pytest tests/test_performance.py -v
@@ -28,7 +28,7 @@ def mock_client():
 
 class TestPerformanceBenchmarks:
     """
-    Performance benchmarks for md-to-feishu.
+    Performance benchmarks for feishu-doc-tools.
 
     These tests verify that:
     - Small documents (<50 blocks) upload in <5s

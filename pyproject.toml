@@ -26,7 +26,7 @@ dev = [
 ]
 
 [project.scripts]
-md-to-feishu = "scripts.md_to_feishu:main"
+feishu-doc-tools = "scripts.md_to_feishu:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -2,7 +2,7 @@
 
 ## 项目概况
 
-本次实现为 **md-to-feishu** 项目扩展了全面的飞书 API 操作功能，支持从本地 Markdown 文件直接创建和批量迁移飞书文档，无需依赖 AI/MCP。
+本次实现为 **feishu-doc-tools** 项目扩展了全面的飞书 API 操作功能，支持从本地 Markdown 文件直接创建和批量迁移飞书文档，无需依赖 AI/MCP。
 
 ## 完成工作
 
@@ -447,7 +447,7 @@ uv info
 
 ## 总结
 
-本次实现完成了 md-to-feishu 的 Phase 1（MVP）：
+本次实现完成了 feishu-doc-tools 的 Phase 1（MVP）：
 
 ✅ **核心功能**
 - 文档创建和管理

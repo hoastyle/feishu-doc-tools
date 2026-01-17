@@ -1,10 +1,10 @@
 # Bitable Operations Guide
 
-This guide covers how to work with Feishu Bitable (multidimensional tables) in md-to-feishu.
+This guide covers how to work with Feishu Bitable (multidimensional tables) in feishu-doc-tools.
 
 ## Overview
 
-Bitable is Feishu's multidimensional table product, similar to Airtable or Google Sheets. The md-to-feishu project now supports:
+Bitable is Feishu's multidimensional table product, similar to Airtable or Google Sheets. The feishu-doc-tools project now supports:
 
 1. **Bitable API Operations** - Create tables, insert/update/delete records
 2. **Markdown Table to Bitable** - Convert Markdown tables to Bitable automatically

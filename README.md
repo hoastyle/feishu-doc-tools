@@ -1,6 +1,6 @@
-# Markdown to Feishu Uploader
+# Feishu Doc Tools
 
-> **📚 完整文档**: [docs/INDEX.md](docs/INDEX.md) | **问题排查**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+> **📚 完整文档**: [docs/QUICK_START.md](docs/QUICK_START.md) | **问题排查**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
 将本地 Markdown 文件上传至飞书的工具套件，支持批量迁移、Wiki 知识库、多维表格等企业级场景。
 
@@ -29,20 +29,20 @@
 
 ---
 
-## 📊 功能对比：md-to-feishu vs Feishu-MCP
+## 📊 功能对比：feishu-doc-tools vs Feishu-MCP
 
-| 功能场景 | md-to-feishu | Feishu-MCP | 推荐 |
+| 功能场景 | feishu-doc-tools | Feishu-MCP | 推荐 |
 |---------|--------------|------------|------|
-| **批量创建文档** | ✅ 原生支持 | ⚠️ 需要循环 | md-to-feishu |
-| **批量上传文件夹** | ✅ 原生支持 | ⚠️ 需要循环 | md-to-feishu |
-| **表格转 Bitable** | ✅ 专门工具 | ❌ 不支持 | md-to-feishu |
-| **大文档上传** | ✅ 并行优化 (5-10x) | ⚠️ 较慢 | md-to-feishu |
+| **批量创建文档** | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
+| **批量上传文件夹** | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
+| **表格转 Bitable** | ✅ 专门工具 | ❌ 不支持 | feishu-doc-tools |
+| **大文档上传** | ✅ 并行优化 (5-10x) | ⚠️ 较慢 | feishu-doc-tools |
 | **AI 辅助编辑** | ❌ 不支持 | ✅ 核心功能 | Feishu-MCP |
 | **智能内容修改** | ❌ 不支持 | ✅ 核心功能 | Feishu-MCP |
 | **交互式操作** | ❌ CLI 工具 | ✅ 对话式 | Feishu-MCP |
 
 **使用建议**: 两个工具互补使用
-- **创建/迁移**: 使用 md-to-feishu（本工具）
+- **创建/迁移**: 使用 feishu-doc-tools（本工具）
 - **编辑/维护**: 使用 Feishu-MCP
 
 ## 架构设计
@@ -178,7 +178,7 @@ uv run python scripts/md_to_feishu.py 大文档.md --parallel
 ## 📂 项目结构
 
 ```
-md-to-feishu/
+feishu-doc-tools/
 ├── scripts/                       # CLI 工具集
 │   ├── md_to_feishu.py            # 核心转换脚本
 │   ├── md_to_feishu_upload.py     # 统一上传脚本

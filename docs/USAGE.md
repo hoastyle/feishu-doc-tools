@@ -10,7 +10,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 克隆项目
 git clone <repository-url>
-cd md-to-feishu
+cd feishu-doc-tools
 
 # 安装依赖
 uv sync
