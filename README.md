@@ -25,18 +25,27 @@ Markdown文件 → Python脚本解析 → JSON中介格式 → AI调用MCP工具
 
 ### 安装依赖
 
+本项目使用 [uv](https://docs.astral.sh/uv/) 进行依赖管理。
+
 ```bash
-pip install -r requirements.txt
+# 安装 uv（如果尚未安装）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 安装项目依赖
+uv sync
+
+# 安装开发依赖
+uv sync --extra dev
 ```
 
 ### 基本用法
 
 ```bash
 # 1. 转换Markdown为JSON格式
-python scripts/md_to_feishu.py <md_file_path> <feishu_doc_id> --output /tmp/blocks.json
+uv run python scripts/md_to_feishu.py <md_file_path> <feishu_doc_id> --output /tmp/blocks.json
 
 # 2. 使用AI工具类上传（通过MCP）
-python -c "from lib.feishu_md_uploader import FeishuMdUploader; \
+uv run python -c "from lib.feishu_md_uploader import FeishuMdUploader; \
            uploader = FeishuMdUploader(); \
            uploader.upload('<md_file>', '<doc_id>')"
 ```
@@ -147,18 +156,19 @@ md-to-feishu/
 
 ```bash
 # 运行所有测试
-pytest tests/
+uv run pytest tests/
 
 # 运行特定测试
-pytest tests/test_md_to_feishu.py -v
+uv run pytest tests/test_md_to_feishu.py -v
 
 # 测试覆盖率
-pytest --cov=scripts --cov=lib tests/
+uv run pytest --cov=scripts --cov=lib tests/
 ```
 
 ## 依赖要求
 
-- Python 3.8+
+- Python 3.8.1+
+- uv (用于依赖管理)
 - markdown-it-py >= 3.0.0
 - 飞书MCP服务器（feishu-docker）
 
