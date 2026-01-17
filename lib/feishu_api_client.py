@@ -868,20 +868,37 @@ class FeishuApiClient:
         if parent_id is None:
             parent_id = doc_id
 
-        # Convert blocks to Feishu API format and process in batches
+        # Process blocks sequentially, handling tables separately
         all_image_block_ids = []
         current_index = index
 
-        # Process blocks in chunks of batch_size
-        for batch_start in range(0, len(blocks), batch_size):
-            batch_end = min(batch_start + batch_size, len(blocks))
-            batch_blocks = blocks[batch_start:batch_end]
+        i = 0
+        while i < len(blocks):
+            block = blocks[i]
+            block_type = block.get("blockType", "")
 
+            # Handle tables separately
+            if block_type == "table":
+                options = block.get("options", {})
+                table_config = options.get('table', {})
+                logger.info(f"Creating table at index {current_index}: {table_config.get('rowSize')}x{table_config.get('columnSize')}")
+                self.create_table_block(doc_id, table_config, parent_id, current_index)
+                current_index += 1
+                i += 1
+                continue
+
+            # Collect non-table blocks into a batch
             children = []
-            image_block_indices = []  # Track image block positions in this batch
+            image_block_indices = []
 
-            for i, block in enumerate(batch_blocks):
+            while i < len(blocks) and len(children) < batch_size:
+                block = blocks[i]
                 block_type = block.get("blockType", "")
+
+                # Stop if we encounter a table
+                if block_type == "table":
+                    break
+
                 options = block.get("options", {})
 
                 if block_type == "text":
@@ -894,10 +911,17 @@ class FeishuApiClient:
                     children.append(self._format_list_block(options))
                 elif block_type == "image":
                     children.append(self._format_image_block(options))
-                    image_block_indices.append(len(children) - 1)  # Track position in this batch
+                    image_block_indices.append(len(children) - 1)
                 else:
                     logger.warning(f"Unknown block type: {block_type}, skipping")
+                    i += 1
                     continue
+
+                i += 1
+
+            # Skip if no children collected
+            if not children:
+                continue
 
             # Prepare request for this batch
             endpoint = self.BLOCKS_ENDPOINT_TEMPLATE.format(doc_id=doc_id, parent_id=parent_id)
@@ -908,7 +932,7 @@ class FeishuApiClient:
             headers = {"Authorization": f"Bearer {token}"}
 
             logger.info(
-                f"Creating {len(children)} blocks in document {doc_id} (batch {batch_start//batch_size + 1})"
+                f"Creating {len(children)} blocks at index {current_index}"
             )
             logger.debug(f"Request payload: {json.dumps(payload, ensure_ascii=False)[:500]}...")
 
@@ -1212,6 +1236,179 @@ class FeishuApiClient:
         align = image_config.get("align", 2)  # Default center
 
         return {"block_type": 27, "image": {"align": align}}  # Image block type (from MCP source)
+
+    def create_table_block(
+        self,
+        doc_id: str,
+        table_config: Dict[str, Any],
+        parent_id: Optional[str] = None,
+        index: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Create a table block in a Feishu document using the descendants API.
+
+        Args:
+            doc_id: Document ID
+            table_config: Table configuration with columnSize, rowSize, and cells
+            parent_id: Parent block ID (default: doc_id for root level)
+            index: Insertion index
+
+        Returns:
+            API response with created table information
+
+        Format:
+            {
+                "columnSize": 3,
+                "rowSize": 3,
+                "cells": [
+                    {
+                        "coordinate": {"row": 0, "column": 0},
+                        "content": {
+                            "blockType": "text",
+                            "options": {...}
+                        }
+                    },
+                    ...
+                ]
+            }
+        """
+        token = self.get_tenant_token()
+
+        if parent_id is None:
+            parent_id = doc_id
+
+        column_size = table_config.get('columnSize', 0)
+        row_size = table_config.get('rowSize', 0)
+        cells_config = table_config.get('cells', [])
+
+        # 生成唯一 ID
+        import time
+        table_id = f"table_{int(time.time() * 1000)}"
+
+        # 创建 descendants 数组
+        descendants = []
+        table_cells = []
+
+        # 创建表格主块
+        table_block = {
+            "block_id": table_id,
+            "block_type": 31,  # 表格
+            "table": {
+                "property": {
+                    "row_size": row_size,
+                    "column_size": column_size
+                }
+            },
+            "children": []
+        }
+
+        # 创建所有单元格
+        for row in range(row_size):
+            for col in range(column_size):
+                cell_id = f"{table_id}_cell_{row}_{col}"
+                table_cells.append(cell_id)
+
+                # 查找该单元格的配置
+                cell_config = None
+                for cfg in cells_config:
+                    coord = cfg.get('coordinate', {})
+                    if coord.get('row') == row and coord.get('column') == col:
+                        cell_config = cfg
+                        break
+
+                # 创建单元格内容
+                if cell_config:
+                    content = cell_config.get('content', {})
+                    block_type = content.get('blockType', 'text')
+                    options = content.get('options', {})
+
+                    # 格式化内容块
+                    if block_type == 'text':
+                        content_block = self._format_text_block(options)
+                    else:
+                        # 默认使用空文本
+                        content_block = self._format_text_block({
+                            'text': {
+                                'textStyles': [{'text': '', 'style': {}}],
+                                'align': 1
+                            }
+                        })
+                else:
+                    # 空单元格
+                    content_block = self._format_text_block({
+                        'text': {
+                            'textStyles': [{'text': '', 'style': {}}],
+                            'align': 1
+                        }
+                    })
+
+                # 单元格内容 ID
+                cell_content_id = f"{cell_id}_content"
+
+                # 创建单元格块
+                cell_block = {
+                    "block_id": cell_id,
+                    "block_type": 32,  # 表格单元格
+                    "table_cell": {},
+                    "children": [cell_content_id]
+                }
+
+                # 创建单元格内容块
+                cell_content_block = {
+                    "block_id": cell_content_id,
+                    **content_block,
+                    "children": []
+                }
+
+                descendants.append(cell_block)
+                descendants.append(cell_content_block)
+
+        # 更新表格主块的 children
+        table_block["children"] = table_cells
+
+        # 表格块放在最前面
+        descendants.insert(0, table_block)
+
+        # 构建请求
+        endpoint = f"/docx/v1/documents/{doc_id}/blocks/{parent_id}/descendant?document_revision_id=-1"
+        url = f"{self.BASE_URL}{endpoint}"
+
+        payload = {
+            "children_id": [table_id],
+            "descendants": descendants,
+            "index": index
+        }
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Creating table: {row_size}x{column_size} with {len(cells_config)} configured cells")
+        logger.debug(f"Table payload size: {len(json.dumps(payload))} bytes")
+
+        response = self.session.post(url, json=payload, headers=headers, timeout=60)
+
+        if response.status_code != 200:
+            # Save payload for debugging
+            debug_file = "/tmp/feishu_table_error_payload.json"
+            with open(debug_file, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            logger.error(f"Table request payload saved to: {debug_file}")
+
+            raise FeishuApiRequestError(
+                f"Failed to create table: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to create table: {result.get('msg', 'Unknown error')}\n"
+                f"Error code: {result.get('code')}"
+            )
+
+        logger.info(f"Successfully created table: {row_size}x{column_size}")
+
+        return result
 
     def _convert_text_style(self, style: Dict[str, Any]) -> Dict[str, Any]:
         """Convert text style from md-to-feishu format to API format"""

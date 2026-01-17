@@ -81,7 +81,7 @@ class MarkdownToFeishuConverter:
 
         self.blocks: List[Dict[str, Any]] = []
         self.images: List[Dict[str, Any]] = []
-        self.md_parser = MarkdownIt()
+        self.md_parser = MarkdownIt().enable('table')
 
     def convert(self) -> Dict[str, Any]:
         """执行转换"""
@@ -155,6 +155,9 @@ class MarkdownToFeishuConverter:
             elif token.type == 'blockquote_open':
                 # 处理引用
                 i = self._process_blockquote(tokens, i)
+            elif token.type == 'table_open':
+                # 处理表格
+                i = self._process_table(tokens, i)
             else:
                 i += 1
 
@@ -182,6 +185,10 @@ class MarkdownToFeishuConverter:
         # paragraph_open -> inline -> paragraph_close
         inline_token = tokens[start_idx + 1]
         text_styles = self._extract_inline_styles(inline_token)
+
+        # 如果段落为空（例如只包含被跳过的网络图片），则跳过
+        if not text_styles or all(not style.get('text', '').strip() for style in text_styles):
+            return start_idx + 3
 
         # 检查是否需要分割长段落
         total_length = sum(len(style.get('text', '')) for style in text_styles)
@@ -285,6 +292,118 @@ class MarkdownToFeishuConverter:
             }
         }
         self.blocks.append(block)
+
+        return i + 1
+
+    def _process_table(self, tokens: List[Token], start_idx: int) -> int:
+        """处理表格
+
+        飞书表格需要使用 descendants API：
+        - block_type: 31 表格主块
+        - block_type: 32 表格单元格
+        - block_type: 2  单元格内文本
+        """
+        i = start_idx + 1
+        headers = []
+        rows = []
+
+        # 解析表格结构
+        while i < len(tokens):
+            token = tokens[i]
+
+            if token.type == 'table_close':
+                break
+
+            # 解析表头
+            if token.type == 'thead_open':
+                i += 1  # 跳过 thead_open
+                i += 1  # 跳过 tr_open
+                while i < len(tokens) and tokens[i].type != 'tr_close':
+                    if tokens[i].type == 'th_open':
+                        # 获取单元格内容
+                        inline_token = tokens[i + 1]
+                        cell_text = self._extract_inline_text(inline_token)
+                        headers.append(cell_text)
+                        i += 3  # 跳过 th_open, inline, th_close
+                    else:
+                        i += 1
+                i += 2  # 跳过 tr_close, thead_close
+
+            # 解析表格内容行
+            elif token.type == 'tbody_open':
+                i += 1  # 跳过 tbody_open
+                while i < len(tokens) and tokens[i].type != 'tbody_close':
+                    if tokens[i].type == 'tr_open':
+                        row = []
+                        i += 1  # 跳过 tr_open
+                        while i < len(tokens) and tokens[i].type != 'tr_close':
+                            if tokens[i].type == 'td_open':
+                                inline_token = tokens[i + 1]
+                                cell_text = self._extract_inline_text(inline_token)
+                                row.append(cell_text)
+                                i += 3  # 跳过 td_open, inline, td_close
+                            else:
+                                i += 1
+                        rows.append(row)
+                        i += 1  # 跳过 tr_close
+                    else:
+                        i += 1
+            else:
+                i += 1
+
+        # 生成表格配置
+        column_size = len(headers) if headers else 0
+        row_size = len(rows) + (1 if headers else 0)  # 包括表头行
+
+        if column_size == 0 or row_size == 0:
+            logger.warning("Empty table detected, skipping")
+            return i + 1
+
+        # 创建表格块（使用特殊标记，表示需要用 descendants API）
+        table_block = {
+            'blockType': 'table',
+            'options': {
+                'table': {
+                    'columnSize': column_size,
+                    'rowSize': row_size,
+                    'cells': []
+                }
+            }
+        }
+
+        # 添加表头单元格
+        for col_idx, header_text in enumerate(headers):
+            table_block['options']['table']['cells'].append({
+                'coordinate': {'row': 0, 'column': col_idx},
+                'content': {
+                    'blockType': 'text',
+                    'options': {
+                        'text': {
+                            'textStyles': [{'text': header_text, 'style': {'bold': True}}],
+                            'align': 1
+                        }
+                    }
+                }
+            })
+
+        # 添加数据行单元格
+        for row_idx, row_data in enumerate(rows):
+            for col_idx, cell_text in enumerate(row_data):
+                table_block['options']['table']['cells'].append({
+                    'coordinate': {'row': row_idx + 1, 'column': col_idx},
+                    'content': {
+                        'blockType': 'text',
+                        'options': {
+                            'text': {
+                                'textStyles': [{'text': cell_text, 'style': {}}],
+                                'align': 1
+                            }
+                        }
+                    }
+                })
+
+        self.blocks.append(table_block)
+        logger.info(f"Created table: {row_size}x{column_size}")
 
         return i + 1
 
