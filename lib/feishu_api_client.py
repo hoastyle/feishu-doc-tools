@@ -560,6 +560,12 @@ class FeishuApiClient:
             response = self.session.post(url, json=payload, headers=headers, timeout=30)
 
             if response.status_code != 200:
+                # Save payload for debugging
+                debug_file = "/tmp/feishu_error_payload.json"
+                with open(debug_file, 'w', encoding='utf-8') as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                logger.error(f"Request payload saved to: {debug_file}")
+
                 raise FeishuApiRequestError(
                     f"Failed to create blocks: HTTP {response.status_code}\n"
                     f"Response: {response.text}"
@@ -736,15 +742,30 @@ class FeishuApiClient:
         # Convert text styles to API format
         text_elements = []
         for style in text_styles:
-            element = {}
-            if "equation" in style:
-                element["equation"] = style["equation"]
-            if "text" in style:
-                element["text"] = style["text"]
-            if "style" in style:
-                element["style"] = self._convert_text_style(style["style"])
+            # Skip empty elements
+            text_content = style.get("text", "")
+            equation_content = style.get("equation", "")
 
-            text_elements.append(element)
+            if not text_content and not equation_content:
+                continue
+            if text_content == "":
+                continue
+
+            # Convert to Feishu API format
+            if equation_content:
+                # Equation element
+                text_elements.append({
+                    "equation": equation_content
+                })
+            else:
+                # Text run element
+                text_element_style = self._convert_text_style(style.get("style", {}))
+                text_elements.append({
+                    "text_run": {
+                        "content": text_content,
+                        "text_element_style": text_element_style
+                    }
+                })
 
         return {
             "block_type": 2,  # Text block type
@@ -766,18 +787,28 @@ class FeishuApiClient:
         content = heading_config.get("content", "")
         align = heading_config.get("align", 1)
 
+        # Feishu API block_type codes: heading1-9 use block_type 3-11
+        feishu_block_type = 2 + level  # heading1 = 3, heading2 = 4, etc.
+
+        # Heading field name matches level
+        heading_field = f"heading{level}"
+
         return {
-            "block_type": 1,  # Heading block type? (Actually this varies, need to check)
-            # Actually heading uses a different format
-            "heading": {
-                "level": level,
-                "style": {"align": align}
-            },
-            "text": {
+            "block_type": feishu_block_type,
+            heading_field: {
                 "elements": [{
-                    "text": content,
-                    "style": {}
-                }]
+                    "text_run": {
+                        "content": content,
+                        "text_element_style": {
+                            "bold": False,
+                            "italic": False,
+                            "strikethrough": False,
+                            "underline": False,
+                            "inline_code": False
+                        }
+                    }
+                }],
+                "style": {"align": align}
             }
         }
 
@@ -786,17 +817,27 @@ class FeishuApiClient:
         code_config = options.get("code", {})
         code = code_config.get("code", "")
         language = code_config.get("language", 1)  # 1 = PlainText (Feishu API standard)
+        wrap = code_config.get("wrap", False)
 
         return {
-            "block_type": 3,  # Code block type
+            "block_type": 14,  # Code block type
             "code": {
-                "code": code,
-                "language": language,
-                # Feishu API requires elements field for code blocks
                 "elements": [{
-                    "text": code,
-                    "style": {}
-                }]
+                    "text_run": {
+                        "content": code,
+                        "text_element_style": {
+                            "bold": False,
+                            "italic": False,
+                            "strikethrough": False,
+                            "underline": False,
+                            "inline_code": False
+                        }
+                    }
+                }],
+                "style": {
+                    "language": language,
+                    "wrap": wrap
+                }
             }
         }
 
@@ -807,15 +848,27 @@ class FeishuApiClient:
         is_ordered = list_config.get("isOrdered", False)
         align = list_config.get("align", 1)
 
+        # Block types: 12 = bullet (unordered), 13 = ordered
+        block_type = 13 if is_ordered else 12
+        list_field = "ordered" if is_ordered else "bullet"
+
         return {
-            "block_type": 4 if is_ordered else 5,  # Ordered/Unordered list
-            "bullet": {
+            "block_type": block_type,
+            list_field: {
                 "elements": [{
-                    "text": content,
-                    "style": {}
-                }]
-            },
-            "style": {"align": align}
+                    "text_run": {
+                        "content": content,
+                        "text_element_style": {
+                            "bold": False,
+                            "italic": False,
+                            "strikethrough": False,
+                            "underline": False,
+                            "inline_code": False
+                        }
+                    }
+                }],
+                "style": {"align": align}
+            }
         }
 
     def _format_image_block(self, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -832,26 +885,21 @@ class FeishuApiClient:
 
     def _convert_text_style(self, style: Dict[str, Any]) -> Dict[str, Any]:
         """Convert text style from md-to-feishu format to API format"""
-        api_style = {}
+        # Feishu API requires all style fields to be present
+        api_style = {
+            "bold": style.get("bold", False),
+            "italic": style.get("italic", False),
+            "underline": style.get("underline", False),
+            "strikethrough": style.get("strikethrough", False),
+            "inline_code": style.get("inline_code", False)
+        }
 
-        if style.get("bold"):
-            api_style["bold"] = True
-        if style.get("italic"):
-            api_style["italic"] = True
-        if style.get("underline"):
-            api_style["underline"] = True
-        if style.get("strikethrough"):
-            api_style["strikethrough"] = True
-        if style.get("inline_code"):
-            api_style["code"] = True
-
-        # Text color
+        # Text color (optional)
         text_color = style.get("text_color")
         if text_color is not None:
-            # Feishu uses predefined color indices
             api_style["text_color"] = text_color
 
-        # Background color
+        # Background color (optional)
         bg_color = style.get("background_color")
         if bg_color is not None:
             api_style["background_color"] = bg_color
