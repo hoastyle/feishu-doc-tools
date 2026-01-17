@@ -6,28 +6,28 @@ This script creates a new Feishu document and uploads markdown content to it.
 
 Usage Examples:
     # Create document in root folder (use filename as title)
-    uv run uv run python scripts/create_feishu_doc.py README.md
+    uv run python scripts/create_feishu_doc.py README.md
 
     # Create with custom title
-    uv run uv run python scripts/create_feishu_doc.py README.md --title "My Document"
+    uv run python scripts/create_feishu_doc.py README.md --title "My Document"
 
     # Create in specific folder
-    uv run uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
+    uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 
     # Create with custom credentials
-    uv run uv run python scripts/create_feishu_doc.py README.md --app-id cli_xxxxx --app-secret xxxxx
+    uv run python scripts/create_feishu_doc.py README.md --app-id cli_xxxxx --app-secret xxxxx
 
     # Create and add edit permission for current user
-    uv run uv run python scripts/create_feishu_doc.py README.md --add-permission
+    uv run python scripts/create_feishu_doc.py README.md --add-permission
 
     # Create with admin permission
-    uv run uv run python scripts/create_feishu_doc.py README.md --add-permission --permission-level admin
+    uv run python scripts/create_feishu_doc.py README.md --add-permission --permission-level admin
 
     # Create with permission for specific user
-    uv run uv run python scripts/create_feishu_doc.py README.md --add-permission --user-id ou_xxxxx
+    uv run python scripts/create_feishu_doc.py README.md --add-permission --user-id ou_xxxxx
 
     # Show progress (already enabled by default)
-    uv run uv run python scripts/create_feishu_doc.py README.md -v
+    uv run python scripts/create_feishu_doc.py README.md -v
 
 Features:
     - Creates new Feishu document with markdown content
@@ -71,16 +71,16 @@ def main():
         epilog="""
 Examples:
   # Create in root folder with filename as title
-  uv run uv run python scripts/create_feishu_doc.py README.md
+  uv run python scripts/create_feishu_doc.py README.md
 
   # Create with custom title
-  uv run uv run python scripts/create_feishu_doc.py docs/guide.md --title "User Guide"
+  uv run python scripts/create_feishu_doc.py docs/guide.md --title "User Guide"
 
   # Create in specific folder
-  uv run uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
+  uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 
   # Use custom credentials
-  uv run uv run python scripts/create_feishu_doc.py README.md \\
+  uv run python scripts/create_feishu_doc.py README.md \\
     --app-id cli_xxxxx --app-secret xxxxx
         """,
     )

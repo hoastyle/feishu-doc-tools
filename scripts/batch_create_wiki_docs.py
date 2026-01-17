@@ -7,16 +7,16 @@ creating them as nodes in the Wiki hierarchy.
 
 Usage:
     # Upload to specific Wiki space (root level)
-    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+    uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
 
     # Upload to personal knowledge base
-    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --personal
+    uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 
     # Upload to specific parent node
-    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
+    uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
 
     # Custom file pattern
-    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
+    uv run python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
 """
 
 import argparse
@@ -175,19 +175,19 @@ def main():
         epilog="""
 Examples:
   # Upload all .md files to Wiki space (root level)
-  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+  uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
 
   # Upload to personal knowledge base
-  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --personal
+  uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 
   # Upload to specific parent node (subdirectory)
-  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
+  uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
 
   # Custom file pattern
-  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
+  uv run python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
 
   # Dry run (scan without creating)
-  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --dry-run
+  uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --dry-run
         """,
     )
     parser.add_argument(
@@ -199,6 +199,10 @@ Examples:
         help="Target Wiki space ID (use --list-spaces or --personal)",
     )
     parser.add_argument(
+        "--space-name",
+        help="Target Wiki space name (alternative to --space-id, cannot be used together)",
+    )
+    parser.add_argument(
         "--personal",
         action="store_true",
         help="Use personal knowledge base (auto-detects space_id)",
@@ -206,6 +210,10 @@ Examples:
     parser.add_argument(
         "--parent-token",
         help="Parent node token (creates at root if not provided)",
+    )
+    parser.add_argument(
+        "--wiki-path",
+        help="Wiki path like '/API/Reference' (alternative to --parent-token, cannot be used together)",
     )
     parser.add_argument(
         "--pattern",
@@ -240,9 +248,31 @@ Examples:
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
 
-    # Validate space_id
+    # Validate space_id/space-name (mutually exclusive)
+    if args.space_id and args.space_name:
+        parser.error("--space-id and --space-name cannot be used together. Please choose one.")
+
+    if args.personal and (args.space_id or args.space_name):
+        parser.error("--personal cannot be used with --space-id or --space-name.")
+
+    # Validate parent-token/wiki-path (mutually exclusive)
+    if args.parent_token and args.wiki_path:
+        parser.error("--parent-token and --wiki-path cannot be used together. Please choose one.")
+
+    # Resolve space_id
     space_id = args.space_id
-    if args.personal:
+    if args.space_name:
+        # Find space by name
+        client = FeishuApiClient.from_env() if not args.app_id else FeishuApiClient(args.app_id, args.app_secret)
+        logger.info(f"Looking for wiki space named: {args.space_name}")
+        try:
+            space_id = client.find_wiki_space_by_name(args.space_name)
+            if not space_id:
+                parser.error(f"Wiki space not found: {args.space_name}")
+            logger.info(f"  Found space ID: {space_id}")
+        except Exception as e:
+            parser.error(str(e))
+    elif args.personal:
         # Auto-detect personal space
         client = FeishuApiClient.from_env() if not args.app_id else FeishuApiClient(args.app_id, args.app_secret)
         try:
@@ -252,22 +282,30 @@ Examples:
                 space_id = my_library.get("space_id")
                 logger.info(f"Using personal knowledge base: space_id={space_id}")
             else:
-                logger.error("Personal knowledge base not found. Please use --space-id instead.")
-                sys.exit(1)
+                parser.error("Personal knowledge base not found. Please use --space-id instead.")
         except Exception as e:
-            logger.error(f"Failed to detect personal space: {e}")
-            sys.exit(1)
+            parser.error(f"Failed to detect personal space: {e}")
 
     if not space_id:
-        logger.error("Must specify --space-id or --personal")
-        sys.exit(1)
+        parser.error("Must specify --space-id, --space-name, or --personal. Use --list-spaces to see available spaces.")
+
+    # Resolve parent_token from wiki-path
+    parent_token = args.parent_token
+    if args.wiki_path:
+        client = FeishuApiClient.from_env() if not args.app_id else FeishuApiClient(args.app_id, args.app_secret)
+        logger.info(f"Resolving wiki path: {args.wiki_path}")
+        try:
+            parent_token = client.resolve_wiki_path(space_id, args.wiki_path)
+            logger.info(f"  Resolved to parent token: {parent_token}")
+        except Exception as e:
+            parser.error(str(e))
 
     # Execute batch creation
     logger.info(f"Scanning folder: {args.folder}")
     logger.info(f"Pattern: {args.pattern}")
     logger.info(f"Target space: {space_id}")
-    if args.parent_token:
-        logger.info(f"Parent node: {args.parent_token}")
+    if parent_token:
+        logger.info(f"Parent node: {parent_token}")
 
     result = batch_create_wiki_docs(
         folder_path=args.folder,

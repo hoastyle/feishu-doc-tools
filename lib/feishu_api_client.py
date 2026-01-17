@@ -682,6 +682,244 @@ class FeishuApiClient:
         logger.info(f"Found {len(all_items)} wiki spaces total")
         return all_items
 
+    def find_wiki_space_by_name(self, name: str) -> Optional[str]:
+        """
+        Find a wiki space by its name.
+
+        This method searches through all available wiki spaces and returns
+        the space_id of the first space that matches the given name.
+
+        Args:
+            name: Wiki space name to search for
+
+        Returns:
+            space_id if found, None otherwise
+
+        Raises:
+            FeishuApiRequestError: If multiple spaces with the same name are found
+
+        Example:
+            >>> # Find a space by name
+            >>> space_id = client.find_wiki_space_by_name("Product Docs")
+            >>> if space_id:
+            ...     print(f"Found space ID: {space_id}")
+            ... else:
+            ...     print("Space not found")
+        """
+        spaces = self.get_all_wiki_spaces()
+
+        # Find exact matches
+        matches = [s for s in spaces if s.get("name") == name]
+
+        if len(matches) == 0:
+            logger.warning(f"No wiki space found with name: {name}")
+            return None
+        elif len(matches) == 1:
+            space_id = matches[0].get("space_id")
+            logger.info(f"Found wiki space '{name}' with ID: {space_id}")
+            return space_id
+        else:
+            # Multiple matches - provide detailed error
+            space_list = "\n".join([
+                f"  - {s.get('name')} (ID: {s.get('space_id')}, Type: {s.get('space_type')})"
+                for s in matches
+            ])
+            raise FeishuApiRequestError(
+                f"找到多个名为 '{name}' 的知识库，请使用 --space-id 指定：\n{space_list}"
+            )
+
+    def get_wiki_node_list(
+        self,
+        space_id: str,
+        parent_node_token: Optional[str] = None,
+        page_size: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        Get list of wiki nodes in a space.
+
+        API endpoint: GET /wiki/v2/spaces/{space_id}/nodes
+
+        Args:
+            space_id: Wiki space ID
+            parent_node_token: Parent node token (None for root level)
+            page_size: Number of items per page (default 50)
+
+        Returns:
+            List of wiki nodes with metadata
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> # Get root level nodes
+            >>> nodes = client.get_wiki_node_list(space_id="74812***88644")
+            >>> for node in nodes:
+            ...     print(node["title"], node["node_token"])
+            >>>
+            >>> # Get child nodes
+            >>> children = client.get_wiki_node_list(
+            ...     space_id="74812***88644",
+            ...     parent_node_token="nodcn***"
+            ... )
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/wiki/v2/spaces/{space_id}/nodes"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        all_items = []
+        page_token = None
+        has_more = True
+
+        logger.debug(f"Fetching wiki nodes for space {space_id}...")
+
+        while has_more:
+            params = {"page_size": page_size}
+            if page_token:
+                params["page_token"] = page_token
+            if parent_node_token:
+                params["parent_node_token"] = parent_node_token
+
+            response = self.session.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                raise FeishuApiRequestError(
+                    f"Failed to get wiki nodes: HTTP {response.status_code}\n"
+                    f"Response: {response.text}"
+                )
+
+            result = response.json()
+
+            if result.get("code") != 0:
+                raise FeishuApiRequestError(
+                    f"Failed to get wiki nodes: {result.get('msg', 'Unknown error')}"
+                )
+
+            data = result.get("data", {})
+            items = data.get("items", [])
+            all_items.extend(items)
+
+            has_more = data.get("has_more", False)
+            page_token = data.get("page_token")
+
+            logger.debug(f"Fetched {len(items)} nodes, total: {len(all_items)}")
+
+        logger.debug(f"Found {len(all_items)} wiki nodes total")
+        return all_items
+
+    def find_wiki_node_by_name(
+        self,
+        space_id: str,
+        name: str,
+        parent_token: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Find a wiki node by its title within a space.
+
+        Args:
+            space_id: Wiki space ID
+            name: Node title to search for
+            parent_token: Parent node token (None for root level search)
+
+        Returns:
+            node_token if found, None otherwise
+
+        Example:
+            >>> # Find node at root level
+            >>> token = client.find_wiki_node_by_name(
+            ...     space_id="74812***88644",
+            ...     name="API Reference"
+            ... )
+            >>>
+            >>> # Find child node
+            >>> child_token = client.find_wiki_node_by_name(
+            ...     space_id="74812***88644",
+            ...     name="Endpoints",
+            ...     parent_token=token
+            ... )
+        """
+        nodes = self.get_wiki_node_list(space_id, parent_token)
+
+        # Find matches by title
+        matches = [n for n in nodes if n.get("title") == name]
+
+        if len(matches) == 0:
+            logger.debug(f"No wiki node found with title: {name}")
+            return None
+        elif len(matches) == 1:
+            node_token = matches[0].get("node_token")
+            logger.debug(f"Found wiki node '{name}' with token: {node_token}")
+            return node_token
+        else:
+            # Multiple matches - use the first one
+            node_token = matches[0].get("node_token")
+            logger.warning(
+                f"Found {len(matches)} nodes named '{name}', using first one "
+                f"(token: {node_token})"
+            )
+            return node_token
+
+    def resolve_wiki_path(self, space_id: str, path: str) -> Optional[str]:
+        """
+        Resolve a wiki path and return the deepest node's token.
+
+        This method navigates through the wiki space node hierarchy following
+        the given path and returns the token of the final node.
+
+        Args:
+            space_id: Wiki space ID
+            path: Path string like "/API/Reference" or "API/Reference"
+
+        Returns:
+            node_token of the deepest node, None if path is empty
+
+        Raises:
+            FeishuApiRequestError: If any node in the path doesn't exist
+
+        Example:
+            >>> # Resolve absolute path (from root)
+            >>> token = client.resolve_wiki_path(
+            ...     space_id="74812***88644",
+            ...     path="/产品文档/API/参考"
+            ... )
+            >>>
+            >>> # Resolve relative path
+            >>> token = client.resolve_wiki_path(
+            ...     space_id="74812***88644",
+            ...     path="API/Reference"
+            ... )
+        """
+        # Parse path
+        if path.startswith("/"):
+            path = path[1:]  # Remove leading slash
+
+        parts = [p for p in path.split("/") if p]
+
+        if not parts:
+            return None  # Empty path
+
+        logger.debug(f"Resolving wiki path: /{'/'.join(parts)}")
+
+        # Navigate through each level
+        parent_token = None
+
+        for i, part in enumerate(parts):
+            node_token = self.find_wiki_node_by_name(space_id, part, parent_token)
+
+            if node_token is None:
+                # Build error message with context
+                current_path = "/".join(parts[:i]) if i > 0 else "(root)"
+                raise FeishuApiRequestError(
+                    f"路径不存在: '/{'/'.join(parts)}'\n"
+                    f"在节点 '{current_path}' 下找不到 '{part}'"
+                )
+
+            parent_token = node_token
+            logger.debug(f"  → '{part}' -> {node_token}")
+
+        logger.info(f"Resolved path to node token: {parent_token}")
+        return parent_token
+
     def create_wiki_space(self, name: str, description: Optional[str] = None) -> Dict[str, Any]:
         """
         Create a new wiki space.

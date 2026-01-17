@@ -11,7 +11,7 @@ SCRIPTS_DIR = Path("/home/howie/Software/utility/Reference/md-to-feishu/scripts"
 
 # Pattern to match command examples in epilog
 pattern = r'python scripts/([^)]*?)\.py'
-replacement = r'uv run uv run python scripts/\1.py'
+replacement = r'uv run python scripts/\1.py'
 
 # Find all Python scripts
 py_files = list(SCRIPTS_DIR.glob("*.py"))

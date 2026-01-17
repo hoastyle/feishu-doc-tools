@@ -6,16 +6,16 @@ This script creates a new wiki node in a specified wiki space and uploads markdo
 
 Usage Examples:
     # List available wiki spaces
-    uv run uv run python scripts/create_wiki_doc.py --list-spaces
+    uv run python scripts/create_wiki_doc.py --list-spaces
 
     # Create in "My Library" (personal knowledge base) - RECOMMENDED
-    uv run uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
+    uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 
     # Create with custom title in specific space
-    uv run uv run python scripts/create_wiki_doc.py README.md --title "User Guide" --space-id 7516222021840306180
+    uv run python scripts/create_wiki_doc.py README.md --title "User Guide" --space-id 7516222021840306180
 
     # Create as child of another node
-    uv run uv run python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
+    uv run python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
 
 Features:
     - Lists available wiki spaces
@@ -34,7 +34,7 @@ Wiki Spaces:
 
 Quick Start (Recommended):
     # Create document in your personal knowledge base with proper permissions:
-    uv run uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
+    uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 """
 
 import sys
@@ -77,7 +77,7 @@ def list_wiki_spaces(client):
 
         print("\n" + "=" * 70)
         print("💡 使用方法:")
-        print(f'   uv run uv run python scripts/create_wiki_doc.py README.md --space-id {spaces[0]["space_id"]}')
+        print(f'   uv run python scripts/create_wiki_doc.py README.md --space-id {spaces[0]["space_id"]}')
         print("=" * 70)
 
         return 0
@@ -194,19 +194,25 @@ def main():
         epilog="""
 Examples:
   # List all available wiki spaces
-  uv run uv run python scripts/create_wiki_doc.py --list-spaces
+  uv run python scripts/create_wiki_doc.py --list-spaces
 
   # Create in personal knowledge base with auto-permission (RECOMMENDED)
-  uv run uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
+  uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 
   # Create in personal knowledge base without permission flag
-  uv run uv run python scripts/create_wiki_doc.py README.md --personal
+  uv run python scripts/create_wiki_doc.py README.md --personal
 
-  # Create in specific space with custom title
-  uv run uv run python scripts/create_wiki_doc.py docs/guide.md --title "User Guide" --space-id 7516222021840306180
+  # Create in specific space by ID
+  uv run python scripts/create_wiki_doc.py docs/guide.md --title "User Guide" --space-id 7516222021840306180
 
-  # Create as child of another node
-  uv run uv run python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
+  # Create in specific space by NAME (NEW)
+  uv run python scripts/create_wiki_doc.py docs/guide.md --space-name "产品文档"
+
+  # Create as child of another node using parent-token
+  uv run python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
+
+  # Create using wiki PATH (NEW - more intuitive)
+  uv run python scripts/create_wiki_doc.py api.md --wiki-path "/产品文档/API/参考" --space-name "产品文档"
         """,
     )
 
@@ -223,6 +229,13 @@ Examples:
         type=str,
         default=None,
         help="Target wiki space ID (use --list-spaces to see available spaces)"
+    )
+
+    parser.add_argument(
+        "--space-name",
+        type=str,
+        default=None,
+        help="Target wiki space name (alternative to --space-id, cannot be used together)"
     )
 
     parser.add_argument(
@@ -249,6 +262,13 @@ Examples:
         type=str,
         default=None,
         help="Parent node token (creates at root if not provided)"
+    )
+
+    parser.add_argument(
+        "--wiki-path",
+        type=str,
+        default=None,
+        help="Wiki path like '/API/Reference' (alternative to --parent-token, cannot be used together)"
     )
 
     parser.add_argument(
@@ -302,9 +322,30 @@ Examples:
     if args.md_file.suffix.lower() != ".md":
         logger.warning(f"File extension is not .md: {args.md_file}")
 
-    # Validate space_id
+    # Validate space_id/space-name (mutually exclusive)
+    if args.space_id and args.space_name:
+        parser.error("--space-id and --space-name cannot be used together. Please choose one.")
+
+    if args.personal and (args.space_id or args.space_name):
+        parser.error("--personal cannot be used with --space-id or --space-name.")
+
+    # Validate parent-token/wiki-path (mutually exclusive)
+    if args.parent_token and args.wiki_path:
+        parser.error("--parent-token and --wiki-path cannot be used together. Please choose one.")
+
+    # Resolve space_id
     space_id = args.space_id
-    if args.personal:
+    if args.space_name:
+        # Find space by name
+        logger.info(f"Looking for wiki space named: {args.space_name}")
+        try:
+            space_id = client.find_wiki_space_by_name(args.space_name)
+            if not space_id:
+                parser.error(f"Wiki space not found: {args.space_name}")
+            logger.info(f"  ✓ Found space ID: {space_id}")
+        except FeishuApiRequestError as e:
+            parser.error(str(e))
+    elif args.personal:
         # Auto-detect "个人知识库" space_id
         logger.info("Auto-detecting '个人知识库' space...")
         try:
@@ -338,8 +379,17 @@ Examples:
             logger.error(f"Failed to auto-detect '个人知识库': {e}")
             return 1
     elif not space_id:
-        logger.error("--space-id is required (or use --personal). Use --list-spaces to see available spaces.")
-        return 1
+        parser.error("--space-id, --space-name, or --personal is required. Use --list-spaces to see available spaces.")
+
+    # Resolve parent_token from wiki-path
+    parent_token = args.parent_token
+    if args.wiki_path:
+        logger.info(f"Resolving wiki path: {args.wiki_path}")
+        try:
+            parent_token = client.resolve_wiki_path(space_id, args.wiki_path)
+            logger.info(f"  ✓ Resolved to parent token: {parent_token}")
+        except FeishuApiRequestError as e:
+            parser.error(str(e))
 
     # Create wiki document
     result = create_wiki_document(
@@ -347,7 +397,7 @@ Examples:
         md_file=args.md_file,
         space_id=space_id,
         title=args.title,
-        parent_node_token=args.parent_token,
+        parent_node_token=parent_token,
         add_user_permission=args.auto_permission
     )
 

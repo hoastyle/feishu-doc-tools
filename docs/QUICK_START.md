@@ -117,38 +117,67 @@ uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
 **工具**: `create_wiki_doc.py`
 
+**新功能**: 支持按名称查找知识库和按路径指定层级
+
 ```bash
 # 列出可用 Wiki 空间
 uv run python scripts/create_wiki_doc.py --list-spaces
 
-# 上传到指定空间
+# 方式1: 使用 space-id（原有）
 uv run python scripts/create_wiki_doc.py README.md --space-id 74812***88644
+
+# 方式2: 使用 space-name（新！）- 按名称查找知识库
+uv run python scripts/create_wiki_doc.py README.md --space-name "产品文档"
 
 # 上传到个人知识库（自动检测）
 uv run python scripts/create_wiki_doc.py README.md --personal
 
-# 上传到指定节点（子目录）
+# 方式1: 使用 parent-token（原有）- 指定父节点
 uv run python scripts/create_wiki_doc.py README.md \
   --space-id 74812***88644 \
   --parent-token nodcnxxxxx
+
+# 方式2: 使用 wiki-path（新！）- 按路径指定层级
+uv run python scripts/create_wiki_doc.py README.md \
+  --space-name "产品文档" \
+  --wiki-path "/API/参考"
 ```
+
+**参数说明**:
+- `--space-id` 和 `--space-name`: **二选一**，指定目标知识库
+- `--parent-token` 和 `--wiki-path`: **二选一**，指定父节点位置
 
 #### 3.2 批量上传到 Wiki
 
 **工具**: `batch_create_wiki_docs.py`
 
+**新功能**: 同样支持 `--space-name` 和 `--wiki-path`
+
 ```bash
-# 批量上传到 Wiki 空间根目录
+# 方式1: 使用 space-id（原有）
 uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+
+# 方式2: 使用 space-name（新！）
+uv run python scripts/batch_create_wiki_docs.py ./docs --space-name "产品文档"
 
 # 批量上传到个人知识库
 uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 
-# 批量上传到指定节点
+# 方式1: 使用 parent-token（原有）
 uv run python scripts/batch_create_wiki_docs.py ./docs \
   --space-id 74812***88644 \
   --parent-token nodcnxxxxx
+
+# 方式2: 使用 wiki-path（新！）- 批量上传到指定路径
+uv run python scripts/batch_create_wiki_docs.py ./docs \
+  --space-name "产品文档" \
+  --wiki-path "/开发文档"
 ```
+
+**注意事项**:
+- `--space-id` 和 `--space-name` 不能同时使用
+- `--parent-token` 和 `--wiki-path` 不能同时使用
+- `--wiki-path` 格式: `/层级1/层级2/层级3`（以 `/` 开头表示从根节点开始）
 
 **详细文档**: 见各工具的 `--help` 输出
 

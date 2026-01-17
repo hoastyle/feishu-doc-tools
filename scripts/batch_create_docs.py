@@ -7,20 +7,20 @@ for each one. Useful for migrating documentation from local files to Feishu.
 
 Usage Examples:
     # Create documents from all .md files in ./docs
-    uv run uv run python scripts/batch_create_docs.py ./docs
+    uv run python scripts/batch_create_docs.py ./docs
 
     # Create in specific Feishu folder
-    uv run uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+    uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
     # Custom file pattern
-    uv run uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
+    uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
 
     # Use custom credentials
-    uv run uv run python scripts/batch_create_docs.py ./docs \\
+    uv run python scripts/batch_create_docs.py ./docs \\
       --app-id cli_xxxxx --app-secret xxxxx
 
     # Verbose output for debugging
-    uv run uv run python scripts/batch_create_docs.py ./docs -v
+    uv run python scripts/batch_create_docs.py ./docs -v
 
 Features:
     - Scans folder recursively for markdown files
@@ -110,19 +110,19 @@ def main():
         epilog="""
 Examples:
   # Create from all .md files in ./docs
-  uv run uv run python scripts/batch_create_docs.py ./docs
+  uv run python scripts/batch_create_docs.py ./docs
 
   # Create in specific Feishu folder
-  uv run uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+  uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
   # Custom file pattern
-  uv run uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
+  uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
 
   # Recursive search in subdirectories
-  uv run uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+  uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 
   # Custom credentials
-  uv run uv run python scripts/batch_create_docs.py ./docs \\
+  uv run python scripts/batch_create_docs.py ./docs \\
     --app-id cli_xxxxx --app-secret xxxxx
         """
     )

@@ -11,7 +11,7 @@ DOCS_DIR = Path("/home/howie/Software/utility/Reference/md-to-feishu/docs")
 
 # Pattern to match command examples
 pattern = r'python scripts/([^)]+?)\.py'
-replacement = r'uv run uv run python scripts/\1.py'
+replacement = r'uv run python scripts/\1.py'
 
 # Find all markdown files
 md_files = list(DOCS_DIR.glob("*.md"))
