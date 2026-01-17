@@ -69,7 +69,7 @@ class MarkdownToFeishuConverter:
         self,
         md_file: Path,
         doc_id: str,
-        batch_size: int = 50,
+        batch_size: int = 200,
         image_mode: str = 'local',
         max_text_length: int = 2000
     ):
@@ -102,6 +102,9 @@ class MarkdownToFeishuConverter:
             batches = self._create_batches()
             logger.info(f"Created {len(batches)} batches")
 
+            # 生成上传说明
+            upload_instructions = self._generate_upload_instructions(batches)
+
             # 构建结果
             result = {
                 'success': True,
@@ -112,7 +115,8 @@ class MarkdownToFeishuConverter:
                     'totalBlocks': len(self.blocks),
                     'totalBatches': len(batches),
                     'totalImages': len(self.images)
-                }
+                },
+                'uploadInstructions': upload_instructions
             }
 
             return result
@@ -492,6 +496,99 @@ class MarkdownToFeishuConverter:
 
         return batches
 
+    def _generate_upload_instructions(self, batches: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        生成上传说明和一键脚本
+
+        Returns:
+            包含建议和脚本的上传说明字典
+        """
+        total_blocks = len(self.blocks)
+        total_batches = len(batches)
+
+        # 智能批次大小建议
+        if total_blocks <= 200:
+            recommended_batch_size = total_blocks  # 一次上传
+            mcp_calls = 1
+        elif total_blocks <= 1000:
+            recommended_batch_size = 200
+            mcp_calls = (total_blocks + 199) // 200
+        else:
+            recommended_batch_size = 500
+            mcp_calls = (total_blocks + 499) // 500
+
+        # 生成一键上传脚本
+        script_lines = [
+            "#!/bin/bash",
+            "#",
+            "# 飞书文档一键上传脚本",
+            f"# 文档ID: {self.doc_id}",
+            f"# 总blocks: {total_blocks}",
+            f"# 批次数: {total_batches}",
+            "#",
+            "# 使用方法:",
+            "# 1. 确保已安装 feishu-docker MCP",
+            "# 2. 在 Claude Code 中执行以下命令:",
+            "#",
+            "",
+            "DOC_ID=\"" + self.doc_id + "\"",
+            "START_INDEX=0",
+            ""
+        ]
+
+        current_idx = 0
+        for i, batch in enumerate(batches):
+            batch_num = i + 1
+            block_count = len(batch['blocks'])
+            script_lines.extend([
+                f"# 批次 {batch_num}/{total_batches}: 索引 {current_idx}, {block_count} blocks",
+                f"# 第{batch_num}次MCP调用，将批次数据保存到 /tmp/batch_{batch_num}.json",
+                f'echo \'批次 {batch_num}/{total_batches}: 索引=$START_INDEX, blocks={block_count}\'',
+                f"START_INDEX=$((START_INDEX + {block_count}))",
+                ""
+            ])
+            current_idx += block_count
+
+        script_lines.extend([
+            "",
+            "echo \"\"",
+            "echo \"所有批次上传完成！\"",
+            "echo \"总计上传: $START_INDEX blocks\"",
+            ""
+        ])
+
+        upload_script = "\n".join(script_lines)
+
+        # 生成 Claude Code 上传命令示例
+        claude_commands = []
+        current_index = 0
+        for i, batch in enumerate(batches):
+            batch_num = i + 1
+            batch_file = f"/tmp/batch_{batch_num}.json"
+            block_count = len(batch['blocks'])
+            claude_commands.append(
+                f"# 批次 {batch_num}/{total_batches}: index={current_index}, {block_count} blocks\n"
+                f"# 将以下内容保存到 {batch_file}:\n"
+                f"# {json.dumps(batch['blocks'], ensure_ascii=False)[:100]}...\n"
+                f"# 然后执行:\n"
+                f"# mcp__feishu-docker__batch_create_feishu_blocks(documentId=\"{self.doc_id}\", parentBlockId=\"{self.doc_id}\", index={current_index}, blocks=<从 {batch_file} 读取>)\n"
+            )
+            current_index += block_count
+
+        return {
+            'recommendedBatchSize': recommended_batch_size,
+            'currentBatchSize': self.batch_size,
+            'totalMcpCalls': total_batches,
+            'recommendedMcpCalls': mcp_calls,
+            'optimizationPotential': {
+                'currentCalls': total_batches,
+                'recommendedCalls': mcp_calls,
+                'reductionPercent': int((1 - mcp_calls / total_batches) * 100) if total_batches > 0 else 0
+            },
+            'uploadScript': upload_script,
+            'claudeCommands': claude_commands
+        }
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -501,8 +598,8 @@ def main():
     parser.add_argument('doc_id', type=str, help='Feishu document ID')
     parser.add_argument('--output', type=Path, default=Path('/tmp/feishu_blocks.json'),
                         help='Output JSON file path (default: /tmp/feishu_blocks.json)')
-    parser.add_argument('--batch-size', type=int, default=50,
-                        help='Blocks per batch (default: 50)')
+    parser.add_argument('--batch-size', type=int, default=200,
+                        help='Blocks per batch (default: 200)')
     parser.add_argument('--image-mode', choices=['local', 'download', 'skip'], default='local',
                         help='Image handling mode (default: local)')
     parser.add_argument('--max-text-length', type=int, default=2000,

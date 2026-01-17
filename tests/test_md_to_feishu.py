@@ -61,12 +61,21 @@ def test_converter_basic(sample_md_file):
     assert 'batches' in result
     assert 'images' in result
     assert 'metadata' in result
+    assert 'uploadInstructions' in result  # 新字段
 
     # 检查元数据
     metadata = result['metadata']
     assert metadata['totalBlocks'] > 0
     assert metadata['totalBatches'] >= 1
     assert metadata['totalImages'] == 0  # 示例中没有图片
+
+    # 检查上传说明
+    upload_instructions = result['uploadInstructions']
+    assert 'recommendedBatchSize' in upload_instructions
+    assert 'currentBatchSize' in upload_instructions
+    assert 'totalMcpCalls' in upload_instructions
+    assert 'recommendedMcpCalls' in upload_instructions
+    assert 'uploadScript' in upload_instructions
 
 
 def test_heading_conversion(sample_md_file):
@@ -283,6 +292,50 @@ def test_language_mapping():
     assert LANGUAGE_MAP['typescript'] == 63
     assert LANGUAGE_MAP['go'] == 22
     assert LANGUAGE_MAP['rust'] == 53
+
+
+def test_upload_instructions_small_document(tmp_path):
+    """测试小文档的上传说明"""
+    md_content = "# Small\n\nContent"
+    md_file = tmp_path / "small.md"
+    md_file.write_text(md_content, encoding='utf-8')
+
+    converter = MarkdownToFeishuConverter(
+        md_file=md_file,
+        doc_id="test_doc"
+    )
+
+    result = converter.convert()
+    ui = result['uploadInstructions']
+
+    # 小文档应该建议一次上传
+    assert ui['recommendedBatchSize'] == result['metadata']['totalBlocks']
+    assert ui['recommendedMcpCalls'] == 1
+    assert 'uploadScript' in ui
+
+
+def test_upload_instructions_large_document():
+    """测试大文档的上传说明"""
+    # 创建超过200个blocks的文档
+    md_content = "\n\n".join([f"## Heading {i}" for i in range(250)])
+    md_file = Path("/tmp/large.md")
+    md_file.write_text(md_content, encoding='utf-8')
+
+    converter = MarkdownToFeishuConverter(
+        md_file=md_file,
+        doc_id="test_doc"
+    )
+
+    result = converter.convert()
+    ui = result['uploadInstructions']
+
+    # 大文档应该建议分批
+    assert ui['recommendedBatchSize'] == 200
+    assert ui['recommendedMcpCalls'] >= 2
+    assert 'optimizationPotential' in ui
+
+    # 清理
+    md_file.unlink()
 
 
 if __name__ == '__main__':

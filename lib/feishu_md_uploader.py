@@ -35,7 +35,7 @@ class FeishuMdUploader:
         md_file: Path,
         doc_id: str,
         output_path: Optional[Path] = None,
-        batch_size: int = 50,
+        batch_size: int = 200,
         image_mode: str = 'local',
         max_text_length: int = 2000
     ) -> Dict[str, Any]:
