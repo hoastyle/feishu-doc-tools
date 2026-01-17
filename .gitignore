@@ -52,4 +52,5 @@ htmlcov/
 
 # Environment variables (keep .env.example)
 .env
-.env.local
+.env.local# Ctags files
+tags
