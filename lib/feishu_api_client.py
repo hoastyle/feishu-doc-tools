@@ -14,15 +14,38 @@ import os
 import json
 import base64
 import logging
+import threading
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
+
+
+class BitableFieldType:
+    """
+    Feishu Bitable field type constants.
+
+    Reference: https://open.feishu.cn/document/server-docs/docs/bitable-v1/app-table-field/field
+    """
+
+    TEXT = 1          # 单行文本
+    NUMBER = 2        # 数字
+    SINGLE_SELECT = 4 # 单选
+    MULTI_SELECT = 5  # 多选
+    DATE = 5          # 日期
+    DATETIME = 6      # 日期时间
+    PERSON = 7        # 人员
+    CHECKBOX = 11     # 复选框
+    URL = 15          # 超链接
+    PHONE = 13        # 电话
+    EMAIL = 14        # 邮箱
+    PROGRESS = 18     # 进度
 
 
 class FeishuApiClientError(Exception):
@@ -51,6 +74,7 @@ class FeishuApiClient:
     1. Authentication (tenant_access_token)
     2. Batch block creation
     3. Image upload and binding
+    4. Parallel uploads for improved performance
 
     Usage:
         client = FeishuApiClient.from_env()
@@ -63,13 +87,18 @@ class FeishuApiClient:
     BLOCKS_ENDPOINT_TEMPLATE = "/docx/v1/documents/{doc_id}/blocks/{parent_id}/children"
     IMAGE_UPLOAD_ENDPOINT = "/docx/v1/media/upload"
 
-    # Token cache
+    # Token cache (class-level for thread-safe access)
     _token_cache: Optional[Dict[str, str]] = None
     _token_expire_time: Optional[int] = None
+    _token_lock = threading.Lock()
+
+    # Performance tuning constants
+    MAX_BATCH_WORKERS = 3  # Maximum parallel batch uploads
+    MAX_IMAGE_WORKERS = 5  # Maximum parallel image uploads
 
     def __init__(self, app_id: str, app_secret: str):
         """
-        Initialize Feishu API client.
+        Initialize Feishu API client with connection pooling.
 
         Args:
             app_id: Feishu app ID (cli_xxxxx)
@@ -79,6 +108,26 @@ class FeishuApiClient:
         self.app_secret = app_secret
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json; charset=utf-8"})
+
+        # Configure connection pool with retry strategy
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+        )
+
+        adapter = HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=20,
+            max_retries=retry_strategy,
+        )
+
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     @classmethod
     def from_env(cls, env_file: Optional[str] = None) -> "FeishuApiClient":
@@ -178,7 +227,7 @@ class FeishuApiClient:
 
     def get_tenant_token(self, force_refresh: bool = False) -> str:
         """
-        Get or refresh tenant_access_token.
+        Get or refresh tenant_access_token (thread-safe).
 
         Tokens are cached for 2 hours (7200 seconds).
         If force_refresh is True, always get a new token.
@@ -196,41 +245,42 @@ class FeishuApiClient:
 
         current_time = int(time.time())
 
-        # Check cache
-        if not force_refresh and self._token_cache and self._token_expire_time:
-            if current_time < self._token_expire_time - 300:  # Refresh 5 min before expiry
-                logger.debug("Using cached token")
-                return self._token_cache.get("tenant_access_token", "")
+        # Check cache with lock for thread safety
+        with self._token_lock:
+            if not force_refresh and self._token_cache and self._token_expire_time:
+                if current_time < self._token_expire_time - 300:  # Refresh 5 min before expiry
+                    logger.debug("Using cached token")
+                    return self._token_cache.get("tenant_access_token", "")
 
-        # Request new token
-        url = f"{self.BASE_URL}{self.AUTH_ENDPOINT}"
-        payload = {"app_id": self.app_id, "app_secret": self.app_secret}
+            # Request new token (still within lock to prevent duplicate requests)
+            url = f"{self.BASE_URL}{self.AUTH_ENDPOINT}"
+            payload = {"app_id": self.app_id, "app_secret": self.app_secret}
 
-        logger.debug(f"Requesting tenant token from {url}")
-        response = self.session.post(url, json=payload, timeout=10)
+            logger.debug(f"Requesting tenant token from {url}")
+            response = self.session.post(url, json=payload, timeout=10)
 
-        if response.status_code != 200:
-            raise FeishuApiAuthError(f"Failed to get tenant token: HTTP {response.status_code}")
+            if response.status_code != 200:
+                raise FeishuApiAuthError(f"Failed to get tenant token: HTTP {response.status_code}")
 
-        data = response.json()
+            data = response.json()
 
-        if data.get("code") != 0:
-            raise FeishuApiAuthError(
-                f"Failed to get tenant token: {data.get('msg', 'Unknown error')}"
-            )
+            if data.get("code") != 0:
+                raise FeishuApiAuthError(
+                    f"Failed to get tenant token: {data.get('msg', 'Unknown error')}"
+                )
 
-        token = data.get("tenant_access_token")
-        expire = data.get("expire", 7200)
+            token = data.get("tenant_access_token")
+            expire = data.get("expire", 7200)
 
-        if not token:
-            raise FeishuApiAuthError("No tenant_access_token in response")
+            if not token:
+                raise FeishuApiAuthError("No tenant_access_token in response")
 
-        # Cache token
-        self._token_cache = {"tenant_access_token": token}
-        self._token_expire_time = current_time + expire
+            # Cache token (within lock)
+            self._token_cache = {"tenant_access_token": token}
+            self._token_expire_time = current_time + expire
 
-        logger.info(f"Successfully obtained tenant token, expires in {expire}s")
-        return token
+            logger.info(f"Successfully obtained tenant token, expires in {expire}s")
+            return token
 
     def create_document(
         self, title: str, folder_token: Optional[str] = None, doc_type: str = "docx"
@@ -878,6 +928,608 @@ class FeishuApiClient:
             "space_id": space_id,
             "url": f"https://feishu.cn/wiki/{node_token}" if node_token else None,
         }
+
+    # ========== Bitable API Methods ==========
+
+    def create_bitable(
+        self, name: str, folder_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new Bitable (multidimensional table) application.
+
+        API endpoint: POST /bitable/v1/apps
+
+        Args:
+            name: Bitable application name
+            folder_token: Optional folder token to create in specific folder
+
+        Returns:
+            Dictionary with app_id, name, and url
+
+        Raises:
+            FeishuApiRequestError: If API request fails
+
+        Example:
+            >>> # Create Bitable in default location
+            >>> bitable = client.create_bitable("My Data")
+            >>> print(f"App ID: {bitable['app_id']}")
+            >>>
+            >>> # Create in specific folder
+            >>> bitable = client.create_bitable("My Data", folder_token="fldcnxxxxx")
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps"
+        payload = {"name": name}
+        if folder_token:
+            payload["folder_token"] = folder_token
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Creating Bitable: {name}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to create Bitable: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to create Bitable: {result.get('msg', 'Unknown error')}"
+            )
+
+        app = result.get("data", {}).get("app", {})
+        app_id = app.get("app_id")
+
+        logger.info(f"Bitable created successfully: app_id={app_id}, name={name}")
+
+        return {
+            "app_id": app_id,
+            "name": name,
+            "url": f"https://feishu.cn/base/{app_id}" if app_id else None,
+        }
+
+    def create_table(
+        self,
+        app_id: str,
+        table_name: str,
+        fields: List[Dict[str, Any]],
+        default_view: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Create a new data table in a Bitable application.
+
+        API endpoint: POST /bitable/v1/apps/{app_id}/tables
+
+        Args:
+            app_id: Bitable application ID
+            table_name: Table name
+            fields: List of field definitions, each with:
+                - field_name: Field name
+                - type: Field type (use BitableFieldType constants)
+                - options: Optional field-specific options
+            default_view: Whether to create default view
+
+        Returns:
+            Dictionary with table_id, table_name, and field info
+
+        Raises:
+            FeishuApiRequestError: If API request fails
+
+        Example:
+            >>> fields = [
+            ...     {"field_name": "Name", "type": BitableFieldType.TEXT},
+            ...     {"field_name": "Age", "type": BitableFieldType.NUMBER},
+            ...     {"field_name": "Status", "type": BitableFieldType.SINGLE_SELECT},
+            ... ]
+            >>> table = client.create_table("app123", "People", fields)
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables"
+
+        # Build field configurations
+        field_configs = []
+        for field in fields:
+            config = {
+                "field_name": field["field_name"],
+                "type": field["type"],
+            }
+            if "options" in field:
+                config["options"] = field["options"]
+            field_configs.append(config)
+
+        payload = {
+            "table": {
+                "name": table_name,
+                "default_view_name": "Table View" if default_view else None,
+            },
+            "fields": field_configs,
+        }
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Creating table '{table_name}' in app {app_id}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to create table: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to create table: {result.get('msg', 'Unknown error')}"
+            )
+
+        table = result.get("data", {}).get("table", {})
+        table_id = table.get("table_id")
+
+        logger.info(f"Table created successfully: table_id={table_id}, name={table_name}")
+
+        return {
+            "table_id": table_id,
+            "table_name": table_name,
+            "app_id": app_id,
+            "fields": result.get("data", {}).get("fields", []),
+        }
+
+    def insert_records(
+        self, app_id: str, table_id: str, records: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Insert records into a Bitable table.
+
+        API endpoint: POST /bitable/v1/apps/{app_id}/tables/{table_id}/records
+
+        Args:
+            app_id: Bitable application ID
+            table_id: Table ID
+            records: List of records to insert, each record is a dict of
+                     field_name -> value mappings
+
+        Returns:
+            Dictionary with created record IDs and count
+
+        Raises:
+            FeishuApiRequestError: If API request fails
+
+        Example:
+            >>> records = [
+            ...     {"fields": {"Name": "Alice", "Age": 30}},
+            ...     {"fields": {"Name": "Bob", "Age": 25}},
+            ... ]
+            >>> result = client.insert_records("app123", "table456", records)
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records"
+
+        payload = {"records": records}
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Inserting {len(records)} records into table {table_id}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=15)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to insert records: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to insert records: {result.get('msg', 'Unknown error')}"
+            )
+
+        created_records = result.get("data", {}).get("records", [])
+        record_ids = [r.get("record_id") for r in created_records]
+
+        logger.info(f"Inserted {len(record_ids)} records successfully")
+
+        return {
+            "record_ids": record_ids,
+            "total_records": len(record_ids),
+            "records": created_records,
+        }
+
+    def get_table_records(
+        self,
+        app_id: str,
+        table_id: str,
+        page_size: int = 100,
+        page_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get records from a Bitable table.
+
+        API endpoint: GET /bitable/v1/apps/{app_id}/tables/{table_id}/records
+
+        Args:
+            app_id: Bitable application ID
+            table_id: Table ID
+            page_size: Number of records per page (max 500)
+            page_token: Token for pagination (from previous response)
+
+        Returns:
+            Dictionary with records list, has_more flag, and page_token
+
+        Raises:
+            FeishuApiRequestError: If API request fails
+
+        Example:
+            >>> # Get first page
+            >>> page1 = client.get_table_records("app123", "table456", page_size=100)
+            >>> for record in page1["records"]:
+            ...     print(record["fields"])
+            >>>
+            >>> # Get next page
+            >>> if page1["has_more"]:
+            ...     page2 = client.get_table_records(
+            ...         "app123", "table456", page_token=page1["page_token"]
+            ...     )
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records"
+        params = {"page_size": min(page_size, 500)}
+        if page_token:
+            params["page_token"] = page_token
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = self.session.get(url, params=params, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to get table records: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to get table records: {result.get('msg', 'Unknown error')}"
+            )
+
+        data = result.get("data", {})
+        records = data.get("items", [])
+
+        logger.info(f"Retrieved {len(records)} records from table {table_id}")
+
+        return {
+            "records": records,
+            "has_more": data.get("has_more", False),
+            "page_token": data.get("page_token"),
+            "total_records": len(records),
+        }
+
+    def update_record(
+        self, app_id: str, table_id: str, record_id: str, fields: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Update a single record in a Bitable table.
+
+        API endpoint: PUT /bitable/v1/apps/{app_id}/tables/{table_id}/records/{record_id}
+
+        Args:
+            app_id: Bitable application ID
+            table_id: Table ID
+            record_id: Record ID to update
+            fields: Field name -> value mappings to update
+
+        Returns:
+            Dictionary with updated record data
+
+        Raises:
+            FeishuApiRequestError: If API request fails
+
+        Example:
+            >>> updated = client.update_record(
+            ...     "app123", "table456", "rec789", {"Name": "Alice Updated", "Age": 31}
+            ... )
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records/{record_id}"
+
+        payload = {"fields": fields}
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Updating record {record_id} in table {table_id}")
+        response = self.session.put(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to update record: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to update record: {result.get('msg', 'Unknown error')}"
+            )
+
+        record = result.get("data", {}).get("record", {})
+
+        logger.info(f"Record {record_id} updated successfully")
+
+        return {
+            "record_id": record_id,
+            "record": record,
+            "fields": record.get("fields", {}),
+        }
+
+    def delete_record(
+        self, app_id: str, table_id: str, record_id: str
+    ) -> Dict[str, Any]:
+        """
+        Delete a single record from a Bitable table.
+
+        API endpoint: DELETE /bitable/v1/apps/{app_id}/tables/{table_id}/records/{record_id}
+
+        Args:
+            app_id: Bitable application ID
+            table_id: Table ID
+            record_id: Record ID to delete
+
+        Returns:
+            Dictionary with deletion confirmation
+
+        Raises:
+            FeishuApiRequestError: If API request fails
+
+        Example:
+            >>> result = client.delete_record("app123", "table456", "rec789")
+            >>> assert result["success"]
+        """
+        token = self.get_tenant_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records/{record_id}"
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Deleting record {record_id} from table {table_id}")
+        response = self.session.delete(url, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to delete record: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to delete record: {result.get('msg', 'Unknown error')}"
+            )
+
+        logger.info(f"Record {record_id} deleted successfully")
+
+        return {
+            "success": True,
+            "record_id": record_id,
+        }
+
+    # ========== End Bitable API Methods ==========
+
+    # ========== Parallel Upload Methods ==========
+
+    def batch_create_blocks_parallel(
+        self,
+        doc_id: str,
+        blocks: List[Dict[str, Any]],
+        parent_id: Optional[str] = None,
+        index: int = 0,
+        batch_size: int = 50,
+        max_workers: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Batch create blocks in parallel for improved performance.
+
+        This method splits blocks into batches and uploads them concurrently
+        using ThreadPoolExecutor. Expected 5-10x performance improvement
+        for large documents.
+
+        Args:
+            doc_id: Document ID
+            blocks: List of block configurations
+            parent_id: Parent block ID (default: doc_id for root level)
+            index: Insertion index (default: 0 for beginning)
+            batch_size: Maximum blocks per API request (default: 50)
+            max_workers: Maximum parallel workers (default: self.MAX_BATCH_WORKERS)
+
+        Returns:
+            Dictionary with upload statistics
+
+        Raises:
+            FeishuApiRequestError: If any batch upload fails
+
+        Example:
+            >>> result = client.batch_create_blocks_parallel(
+            ...     "doc123", blocks, max_workers=3
+            ... )
+            >>> print(f"Uploaded {result['total_blocks']} blocks")
+        """
+        if max_workers is None:
+            max_workers = self.MAX_BATCH_WORKERS
+
+        # First pass: format all blocks
+        formatted_blocks = [
+            self._format_block(block["blockType"], block.get("options", {}))
+            for block in blocks
+        ]
+
+        # Split into batches
+        all_batches = []
+        for i in range(0, len(formatted_blocks), batch_size):
+            batch_blocks = formatted_blocks[i : i + batch_size]
+            all_batches.append(
+                {"blocks": batch_blocks, "startIndex": index + i, "batchIndex": len(all_batches)}
+            )
+
+        if not all_batches:
+            return {"total_blocks_created": 0, "total_batches": 0, "image_block_ids": []}
+
+        logger.info(
+            f"Uploading {len(formatted_blocks)} blocks in {len(all_batches)} "
+            f"batches with {max_workers} workers"
+        )
+
+        # Upload batches in parallel
+        total_blocks_created = 0
+        all_image_block_ids = []
+
+        def upload_single_batch(batch_data: Dict[str, Any]) -> Dict[str, Any]:
+            """Upload a single batch and return result."""
+            batch_index = batch_data["batchIndex"]
+            blocks = batch_data["blocks"]
+            start_index = batch_data["startIndex"]
+
+            logger.info(f"Uploading batch {batch_index + 1}/{len(all_batches)}")
+
+            result = self.batch_create_blocks(
+                doc_id=doc_id, blocks=blocks, parent_id=parent_id, index=start_index
+            )
+
+            return {
+                "batch_index": batch_index,
+                "blocks_created": result.get("total_blocks_created", 0),
+                "image_block_ids": result.get("image_block_ids", []),
+            }
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all batch upload tasks
+            future_to_batch = {
+                executor.submit(upload_single_batch, batch): batch
+                for batch in all_batches
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_batch):
+                try:
+                    result = future.result()
+                    total_blocks_created += result["blocks_created"]
+                    all_image_block_ids.extend(result["image_block_ids"])
+                except Exception as e:
+                    batch = future_to_batch[future]
+                    logger.error(
+                        f"Batch {batch['batchIndex']} failed: {e}. "
+                        f"Consider reducing max_workers."
+                    )
+                    raise
+
+        logger.info(f"Parallel upload complete: {total_blocks_created} blocks created")
+
+        return {
+            "total_blocks_created": total_blocks_created,
+            "total_batches": len(all_batches),
+            "image_block_ids": all_image_block_ids,
+        }
+
+    def upload_images_parallel(
+        self,
+        doc_id: str,
+        image_blocks: List[Dict[str, str]],
+        max_workers: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Upload multiple images in parallel for improved performance.
+
+        Expected 3-5x performance improvement for documents with many images.
+
+        Args:
+            doc_id: Document ID
+            image_blocks: List of dicts with 'block_id' and 'image_path' keys
+            max_workers: Maximum parallel workers (default: self.MAX_IMAGE_WORKERS)
+
+        Returns:
+            Dictionary with upload statistics
+
+        Raises:
+            FeishuApiRequestError: If image upload fails
+
+        Example:
+            >>> images = [
+            ...     {"block_id": "block1", "image_path": "/path/to/image1.png"},
+            ...     {"block_id": "block2", "image_path": "/path/to/image2.png"},
+            ... ]
+            >>> result = client.upload_images_parallel("doc123", images)
+            >>> print(f"Uploaded {result['total_images']} images")
+        """
+        if max_workers is None:
+            max_workers = self.MAX_IMAGE_WORKERS
+
+        if not image_blocks:
+            return {"total_images": 0, "failed_images": 0}
+
+        logger.info(
+            f"Uploading {len(image_blocks)} images in parallel "
+            f"with {max_workers} workers"
+        )
+
+        total_uploaded = 0
+        total_failed = 0
+
+        def upload_single_image(image_data: Dict[str, str]) -> Dict[str, Any]:
+            """Upload a single image and return result."""
+            block_id = image_data["block_id"]
+            image_path = image_data["image_path"]
+
+            try:
+                self.upload_and_bind_image(
+                    doc_id=doc_id, block_id=block_id, image_path_or_url=image_path
+                )
+                return {"success": True, "block_id": block_id, "path": image_path}
+            except Exception as e:
+                logger.error(f"Failed to upload image {image_path}: {e}")
+                return {"success": False, "block_id": block_id, "path": image_path, "error": str(e)}
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all image upload tasks
+            future_to_image = {
+                executor.submit(upload_single_image, img): img for img in image_blocks
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_image):
+                try:
+                    result = future.result()
+                    if result["success"]:
+                        total_uploaded += 1
+                    else:
+                        total_failed += 1
+                except Exception as e:
+                    img = future_to_image[future]
+                    logger.error(f"Unexpected error uploading {img['image_path']}: {e}")
+                    total_failed += 1
+
+        logger.info(
+            f"Parallel image upload complete: {total_uploaded} uploaded, "
+            f"{total_failed} failed"
+        )
+
+        return {
+            "total_images": total_uploaded,
+            "failed_images": total_failed,
+        }
+
+    # ========== End Parallel Upload Methods ==========
 
     def batch_create_blocks(
         self,
@@ -1531,7 +2183,11 @@ class FeishuApiClient:
 
 
 def upload_markdown_to_feishu(
-    md_file: str, doc_id: str, app_id: Optional[str] = None, app_secret: Optional[str] = None
+    md_file: str,
+    doc_id: str,
+    app_id: Optional[str] = None,
+    app_secret: Optional[str] = None,
+    parallel: bool = False,
 ) -> Dict[str, Any]:
     """
     Convenience function to upload Markdown file to Feishu.
@@ -1546,6 +2202,7 @@ def upload_markdown_to_feishu(
         doc_id: Feishu document ID
         app_id: Feishu app ID (or use FEISHU_APP_ID env var)
         app_secret: Feishu app secret (or use FEISHU_APP_SECRET env var)
+        parallel: Use parallel uploads for better performance (default: False)
 
     Returns:
         Upload result with document link and statistics
@@ -1555,8 +2212,12 @@ def upload_markdown_to_feishu(
         FeishuApiClientError: If API operations fail
 
     Example:
+        >>> # Serial upload (default)
         >>> result = upload_markdown_to_feishu("README.md", "doxcnxxxxx")
         >>> print(f"Uploaded {result['total_blocks']} blocks")
+        >>>
+        >>> # Parallel upload (faster for large documents)
+        >>> result = upload_markdown_to_feishu("README.md", "doxcnxxxxx", parallel=True)
         >>> print(f"Document: https://feishu.cn/docx/{doc_id}")
     """
     from scripts.md_to_feishu import MarkdownToFeishuConverter
@@ -1578,7 +2239,7 @@ def upload_markdown_to_feishu(
     else:
         client = FeishuApiClient.from_env()
 
-    # Step 3: Upload blocks batch by batch
+    # Step 3: Upload blocks (serial or parallel)
     all_batches = conversion_result.get("batches", [])
     all_images = conversion_result.get("images", [])
 
@@ -1586,44 +2247,82 @@ def upload_markdown_to_feishu(
     total_images = 0
     created_image_block_ids: List[str] = []
 
-    for batch in all_batches:
-        batch_index = batch["batchIndex"]
-        blocks = batch["blocks"]
-        start_index = batch["startIndex"]
+    if parallel and len(all_batches) > 1:
+        # Parallel upload for better performance
+        logger.info("Using parallel upload mode")
 
-        logger.info(f"Uploading batch {batch_index + 1}/{len(all_batches)}")
+        # Flatten all blocks from batches
+        all_blocks = []
+        for batch in all_batches:
+            all_blocks.extend(batch["blocks"])
 
-        result = client.batch_create_blocks(doc_id=doc_id, blocks=blocks, index=start_index)
+        batch_result = client.batch_create_blocks_parallel(doc_id=doc_id, blocks=all_blocks)
+        total_blocks = batch_result.get("total_blocks_created", 0)
+        created_image_block_ids = batch_result.get("image_block_ids", [])
+    else:
+        # Serial upload (original behavior)
+        for batch in all_batches:
+            batch_index = batch["batchIndex"]
+            blocks = batch["blocks"]
+            start_index = batch["startIndex"]
 
-        total_blocks += result.get("total_blocks_created", 0)
+            logger.info(f"Uploading batch {batch_index + 1}/{len(all_batches)}")
 
-        # Collect image block IDs
-        image_block_ids = result.get("image_block_ids", [])
-        created_image_block_ids.extend(image_block_ids)
+            result = client.batch_create_blocks(doc_id=doc_id, blocks=blocks, index=start_index)
 
-    # Step 4: Upload images
+            total_blocks += result.get("total_blocks_created", 0)
+
+            # Collect image block IDs
+            image_block_ids = result.get("image_block_ids", [])
+            created_image_block_ids.extend(image_block_ids)
+
+    # Step 4: Upload images (serial or parallel)
     if all_images and created_image_block_ids:
-        logger.info(f"Uploading {len(all_images)} images")
+        if parallel and len(all_images) > 1:
+            # Parallel image upload
+            logger.info(f"Uploading {len(all_images)} images in parallel")
 
-        for i, image_info in enumerate(all_images):
-            block_index = image_info["blockIndex"]
-            local_path = image_info["localPath"]
-
-            # Find corresponding image block ID
-            # (This assumes image blocks are created in the same order)
-            if i < len(created_image_block_ids):
-                block_id = created_image_block_ids[i]
-
-                logger.info(f"Uploading image {i + 1}/{len(all_images)}: {local_path}")
-
-                try:
-                    client.upload_and_bind_image(
-                        doc_id=doc_id, block_id=block_id, image_path_or_url=local_path
+            # Prepare image block data
+            image_blocks = []
+            for i, image_info in enumerate(all_images):
+                if i < len(created_image_block_ids):
+                    image_blocks.append(
+                        {
+                            "block_id": created_image_block_ids[i],
+                            "image_path": image_info["localPath"],
+                        }
                     )
-                    total_images += 1
-                except Exception as e:
-                    logger.error(f"Failed to upload image {local_path}: {e}")
-                    # Continue with other images
+
+            image_result = client.upload_images_parallel(doc_id=doc_id, image_blocks=image_blocks)
+            total_images = image_result.get("total_images", 0)
+
+            # Log failed images
+            failed = image_result.get("failed_images", 0)
+            if failed > 0:
+                logger.warning(f"{failed} image(s) failed to upload")
+        else:
+            # Serial image upload (original behavior)
+            logger.info(f"Uploading {len(all_images)} images")
+
+            for i, image_info in enumerate(all_images):
+                block_index = image_info["blockIndex"]
+                local_path = image_info["localPath"]
+
+                # Find corresponding image block ID
+                # (This assumes image blocks are created in the same order)
+                if i < len(created_image_block_ids):
+                    block_id = created_image_block_ids[i]
+
+                    logger.info(f"Uploading image {i + 1}/{len(all_images)}: {local_path}")
+
+                    try:
+                        client.upload_and_bind_image(
+                            doc_id=doc_id, block_id=block_id, image_path_or_url=local_path
+                        )
+                        total_images += 1
+                    except Exception as e:
+                        logger.error(f"Failed to upload image {local_path}: {e}")
+                        # Continue with other images
 
     # Return result
     return {
@@ -1633,6 +2332,7 @@ def upload_markdown_to_feishu(
         "total_blocks": total_blocks,
         "total_images": total_images,
         "total_batches": len(all_batches),
+        "parallel_mode": parallel,
     }
 
 

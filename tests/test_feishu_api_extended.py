@@ -11,6 +11,7 @@ from lib.feishu_api_client import (
     FeishuApiClient,
     FeishuApiRequestError,
     FeishuApiAuthError,
+    BitableFieldType,
     create_document_from_markdown,
     batch_create_documents_from_folder,
 )
@@ -492,6 +493,369 @@ class TestWhiteboardOperations:
         payload = call_args[1]["json"]
         assert len(payload["children"]) == 2
         assert payload["children"][1]["block_type"] == 43  # Board block
+
+
+class TestBitableOperations:
+    """Tests for Bitable (multidimensional table) operations."""
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_create_bitable_success(self, mock_post, mock_token, mock_client):
+        """Test successful Bitable creation."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "app": {
+                    "app_id": "bascnxxxxx",
+                    "name": "Test Bitable",
+                    "url": "https://feishu.cn/base/bascnxxxxx",
+                }
+            },
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        result = mock_client.create_bitable("Test Bitable")
+
+        # Assert
+        assert result["app_id"] == "bascnxxxxx"
+        assert result["name"] == "Test Bitable"
+        assert "https://feishu.cn/base/" in result["url"]
+        mock_post.assert_called_once()
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_create_bitable_with_folder(self, mock_post, mock_token, mock_client):
+        """Test creating Bitable in specific folder."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {"app": {"app_id": "bascnxxxxx", "name": "Test"}},
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        result = mock_client.create_bitable("Test", folder_token="fldcnxxxxx")
+
+        # Assert
+        assert result["app_id"] == "bascnxxxxx"
+        # Verify folder_token was included in payload
+        call_kwargs = mock_post.call_args[1]
+        assert "folder_token" in call_kwargs["json"]
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_create_bitable_duplicate_name(self, mock_post, mock_token, mock_client):
+        """Test Bitable creation with duplicate name error."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 400,
+            "msg": "Bitable with this name already exists",
+        }
+        mock_post.return_value = mock_response
+
+        # Execute & Assert
+        with pytest.raises(FeishuApiRequestError, match="already exists"):
+            mock_client.create_bitable("Existing Name")
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_create_table_with_text_fields(self, mock_post, mock_token, mock_client):
+        """Test creating table with text fields."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "table": {"table_id": "tblxxxxx", "name": "People"},
+                "fields": [
+                    {"field_id": "fld1", "field_name": "Name", "type": 1},
+                    {"field_id": "fld2", "field_name": "Email", "type": 1},
+                ],
+            },
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        fields = [
+            {"field_name": "Name", "type": BitableFieldType.TEXT},
+            {"field_name": "Email", "type": BitableFieldType.TEXT},
+        ]
+        result = mock_client.create_table("app123", "People", fields)
+
+        # Assert
+        assert result["table_id"] == "tblxxxxx"
+        assert result["table_name"] == "People"
+        assert len(result["fields"]) == 2
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_create_table_with_select_fields(self, mock_post, mock_token, mock_client):
+        """Test creating table with single select fields."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "table": {"table_id": "tblxxxxx", "name": "Tasks"},
+                "fields": [
+                    {"field_id": "fld1", "field_name": "Task", "type": 1},
+                    {"field_id": "fld2", "field_name": "Status", "type": 4},
+                ],
+            },
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        fields = [
+            {"field_name": "Task", "type": BitableFieldType.TEXT},
+            {
+                "field_name": "Status",
+                "type": BitableFieldType.SINGLE_SELECT,
+                "options": {
+                    "options": [
+                        {"name": "To Do"},
+                        {"name": "In Progress"},
+                        {"name": "Done"},
+                    ]
+                },
+            },
+        ]
+        result = mock_client.create_table("app123", "Tasks", fields)
+
+        # Assert
+        assert result["table_id"] == "tblxxxxx"
+        assert result["table_name"] == "Tasks"
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_insert_records_single(self, mock_post, mock_token, mock_client):
+        """Test inserting a single record."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "records": [
+                    {
+                        "record_id": "recxxxxx",
+                        "fields": {"Name": "Alice", "Age": 30},
+                    }
+                ]
+            },
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        records = [{"fields": {"Name": "Alice", "Age": 30}}]
+        result = mock_client.insert_records("app123", "tbl456", records)
+
+        # Assert
+        assert result["total_records"] == 1
+        assert len(result["record_ids"]) == 1
+        assert result["record_ids"][0] == "recxxxxx"
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_insert_records_batch(self, mock_post, mock_token, mock_client):
+        """Test inserting multiple records in batch."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "records": [
+                    {"record_id": "rec1", "fields": {"Name": "Alice"}},
+                    {"record_id": "rec2", "fields": {"Name": "Bob"}},
+                    {"record_id": "rec3", "fields": {"Name": "Charlie"}},
+                ]
+            },
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        records = [
+            {"fields": {"Name": "Alice"}},
+            {"fields": {"Name": "Bob"}},
+            {"fields": {"Name": "Charlie"}},
+        ]
+        result = mock_client.insert_records("app123", "tbl456", records)
+
+        # Assert
+        assert result["total_records"] == 3
+        assert len(result["record_ids"]) == 3
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.get")
+    def test_get_table_records_pagination(self, mock_get, mock_token, mock_client):
+        """Test getting table records with pagination."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "items": [
+                    {"record_id": "rec1", "fields": {"Name": "Alice"}},
+                    {"record_id": "rec2", "fields": {"Name": "Bob"}},
+                ],
+                "has_more": True,
+                "page_token": "next_page_token",
+            },
+        }
+        mock_get.return_value = mock_response
+
+        # Execute
+        result = mock_client.get_table_records("app123", "tbl456", page_size=100)
+
+        # Assert
+        assert result["total_records"] == 2
+        assert result["has_more"] is True
+        assert result["page_token"] == "next_page_token"
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.put")
+    def test_update_record_success(self, mock_put, mock_token, mock_client):
+        """Test successful record update."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "record": {
+                    "record_id": "recxxxxx",
+                    "fields": {"Name": "Alice Updated", "Age": 31},
+                }
+            },
+        }
+        mock_put.return_value = mock_response
+
+        # Execute
+        result = mock_client.update_record(
+            "app123", "tbl456", "recxxxxx", {"Name": "Alice Updated", "Age": 31}
+        )
+
+        # Assert
+        assert result["record_id"] == "recxxxxx"
+        assert result["fields"]["Name"] == "Alice Updated"
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.delete")
+    def test_delete_record_success(self, mock_delete, mock_token, mock_client):
+        """Test successful record deletion."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"code": 0}
+        mock_delete.return_value = mock_response
+
+        # Execute
+        result = mock_client.delete_record("app123", "tbl456", "recxxxxx")
+
+        # Assert
+        assert result["success"] is True
+        assert result["record_id"] == "recxxxxx"
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_bitable_auth_error(self, mock_post, mock_token, mock_client):
+        """Test Bitable operation with authentication error."""
+        # Setup
+        mock_token.side_effect = FeishuApiAuthError("Invalid token")
+
+        # Execute & Assert
+        with pytest.raises(FeishuApiAuthError):
+            mock_client.create_bitable("Test")
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_bitable_invalid_app_id(self, mock_post, mock_token, mock_client):
+        """Test table operation with invalid app ID."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 404,
+            "msg": "Application not found",
+        }
+        mock_post.return_value = mock_response
+
+        # Execute & Assert
+        with pytest.raises(FeishuApiRequestError, match="not found"):
+            mock_client.create_table("invalid_app", "Table", [])
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_bitable_field_type_constants(self, mock_post, mock_token, mock_client):
+        """Test that BitableFieldType constants are properly defined."""
+        # Execute
+        assert BitableFieldType.TEXT == 1
+        assert BitableFieldType.NUMBER == 2
+        assert BitableFieldType.SINGLE_SELECT == 4
+        assert BitableFieldType.MULTI_SELECT == 5
+        assert BitableFieldType.DATE == 5
+        assert BitableFieldType.DATETIME == 6
+        assert BitableFieldType.PERSON == 7
+        assert BitableFieldType.CHECKBOX == 11
+        assert BitableFieldType.URL == 15
+
+    @patch("lib.feishu_api_client.FeishuApiClient.get_tenant_token")
+    @patch("requests.Session.post")
+    def test_create_table_with_various_field_types(
+        self, mock_post, mock_token, mock_client
+    ):
+        """Test creating table with various field types."""
+        # Setup
+        mock_token.return_value = "test_token"
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "code": 0,
+            "data": {
+                "table": {"table_id": "tblxxxxx", "name": "ComplexTable"},
+                "fields": [
+                    {"field_id": "fld1", "field_name": "Name", "type": 1},
+                    {"field_id": "fld2", "field_name": "Count", "type": 2},
+                    {"field_id": "fld3", "field_name": "Active", "type": 11},
+                ],
+            },
+        }
+        mock_post.return_value = mock_response
+
+        # Execute
+        fields = [
+            {"field_name": "Name", "type": BitableFieldType.TEXT},
+            {"field_name": "Count", "type": BitableFieldType.NUMBER},
+            {"field_name": "Active", "type": BitableFieldType.CHECKBOX},
+        ]
+        result = mock_client.create_table("app123", "ComplexTable", fields)
+
+        # Assert
+        assert result["table_id"] == "tblxxxxx"
+        assert len(result["fields"]) == 3
 
 
 class TestErrorHandling:
