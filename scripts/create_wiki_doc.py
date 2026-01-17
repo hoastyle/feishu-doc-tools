@@ -6,16 +6,16 @@ This script creates a new wiki node in a specified wiki space and uploads markdo
 
 Usage Examples:
     # List available wiki spaces
-    python scripts/create_wiki_doc.py --list-spaces
+    uv run uv run python scripts/create_wiki_doc.py --list-spaces
 
     # Create in "My Library" (personal knowledge base) - RECOMMENDED
-    python scripts/create_wiki_doc.py README.md --personal --auto-permission
+    uv run uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 
     # Create with custom title in specific space
-    python scripts/create_wiki_doc.py README.md --title "User Guide" --space-id 7516222021840306180
+    uv run uv run python scripts/create_wiki_doc.py README.md --title "User Guide" --space-id 7516222021840306180
 
     # Create as child of another node
-    python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
+    uv run uv run python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
 
 Features:
     - Lists available wiki spaces
@@ -34,7 +34,7 @@ Wiki Spaces:
 
 Quick Start (Recommended):
     # Create document in your personal knowledge base with proper permissions:
-    python scripts/create_wiki_doc.py README.md --personal --auto-permission
+    uv run uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 """
 
 import sys
@@ -77,7 +77,7 @@ def list_wiki_spaces(client):
 
         print("\n" + "=" * 70)
         print("💡 使用方法:")
-        print(f'   python scripts/create_wiki_doc.py README.md --space-id {spaces[0]["space_id"]}')
+        print(f'   uv run uv run python scripts/create_wiki_doc.py README.md --space-id {spaces[0]["space_id"]}')
         print("=" * 70)
 
         return 0
@@ -194,19 +194,19 @@ def main():
         epilog="""
 Examples:
   # List all available wiki spaces
-  python scripts/create_wiki_doc.py --list-spaces
+  uv run uv run python scripts/create_wiki_doc.py --list-spaces
 
   # Create in personal knowledge base with auto-permission (RECOMMENDED)
-  python scripts/create_wiki_doc.py README.md --personal --auto-permission
+  uv run uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 
   # Create in personal knowledge base without permission flag
-  python scripts/create_wiki_doc.py README.md --personal
+  uv run uv run python scripts/create_wiki_doc.py README.md --personal
 
   # Create in specific space with custom title
-  python scripts/create_wiki_doc.py docs/guide.md --title "User Guide" --space-id 7516222021840306180
+  uv run uv run python scripts/create_wiki_doc.py docs/guide.md --title "User Guide" --space-id 7516222021840306180
 
   # Create as child of another node
-  python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
+  uv run uv run python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
         """,
     )
 

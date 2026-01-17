@@ -1,7 +1,7 @@
 [project]
-name = "md-to-feishu"
+name = "feishu-doc-tools"
 version = "0.1.0"
-description = "Convert Markdown files to Feishu documents without using AI context"
+description = "Feishu document management tools - batch creation, Wiki, Bitable, and migration"
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]

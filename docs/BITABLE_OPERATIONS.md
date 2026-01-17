@@ -121,22 +121,22 @@ The `md_table_to_bitable.py` script converts Markdown tables to Bitable automati
 
 ```bash
 # Basic usage - convert all tables in a Markdown file
-python scripts/md_table_to_bitable.py data.md
+uv run python scripts/md_table_to_bitable.py data.md
 
 # Custom Bitable name
-python scripts/md_table_to_bitable.py data.md --name "Project Data"
+uv run python scripts/md_table_to_bitable.py data.md --name "Project Data"
 
 # Create in specific folder
-python scripts/md_table_to_bitable.py data.md --folder fldcnxxxxx
+uv run python scripts/md_table_to_bitable.py data.md --folder fldcnxxxxx
 
 # Auto-detect field types (default: enabled)
-python scripts/md_table_to_bitable.py data.md --auto-types
+uv run python scripts/md_table_to_bitable.py data.md --auto-types
 
 # Convert only specific table (0-based index)
-python scripts/md_table_to_bitable.py data.md --table-index 0
+uv run python scripts/md_table_to_bitable.py data.md --table-index 0
 
 # Verbose logging
-python scripts/md_table_to_bitable.py data.md -v
+uv run python scripts/md_table_to_bitable.py data.md -v
 ```
 
 ### Input Format
@@ -356,7 +356,7 @@ pytest tests/test_table_to_bitable.py -v
 
 ```bash
 # Convert all tables in README.md to a Bitable
-python scripts/md_table_to_bitable.py README.md --name "README Tables"
+uv run python scripts/md_table_to_bitable.py README.md --name "README Tables"
 ```
 
 ### Example 2: Project Data
@@ -441,11 +441,11 @@ print(f"Imported {result['total_records']} contacts")
 
 ```bash
 # Enable verbose logging
-python scripts/md_table_to_bitable.py data.md -v
+uv run python scripts/md_table_to_bitable.py data.md -v
 
 # Or set environment variable
 export PYTHONUNBUFFERED=1
-python scripts/md_table_to_bitable.py data.md
+uv run python scripts/md_table_to_bitable.py data.md
 ```
 
 ## See Also

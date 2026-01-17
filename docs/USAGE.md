@@ -46,7 +46,7 @@ print(instructions)
 ### 3. 命令行参数
 
 ```bash
-python scripts/md_to_feishu.py <md_file> <doc_id> [选项]
+uv run python scripts/md_to_feishu.py <md_file> <doc_id> [选项]
 
 选项:
   --output PATH          输出JSON文件路径（默认：/tmp/feishu_blocks.json）

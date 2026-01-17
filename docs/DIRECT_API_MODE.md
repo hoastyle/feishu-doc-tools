@@ -38,10 +38,10 @@ export FEISHU_APP_SECRET=xxxxx
 
 ```bash
 # Upload directly to Feishu
-python scripts/md_to_feishu_upload.py README.md doxcnxxxxx
+uv run python scripts/md_to_feishu_upload.py README.md doxcnxxxxx
 
 # With options
-python scripts/md_to_feishu_upload.py README.md doxcnxxxxx \
+uv run python scripts/md_to_feishu_upload.py README.md doxcnxxxxx \
   --batch-size 50 \
   --image-mode local \
   --verbose
@@ -51,7 +51,7 @@ python scripts/md_to_feishu_upload.py README.md doxcnxxxxx \
 
 ```bash
 # Generate JSON for AI to process
-python scripts/md_to_feishu_upload.py README.md doxcnxxxxx --mode json
+uv run python scripts/md_to_feishu_upload.py README.md doxcnxxxxx --mode json
 ```
 
 ## Implementation Details
@@ -136,14 +136,14 @@ result = client.batch_create_blocks(
 
 ```bash
 # Direct upload
-python scripts/md_to_feishu_upload.py \
+uv run python scripts/md_to_feishu_upload.py \
   examples/sample.md \
   doxcnAbCdEf1234567890 \
   --batch-size 50 \
   --image-mode local
 
 # JSON output (for AI)
-python scripts/md_to_feishu_upload.py \
+uv run python scripts/md_to_feishu_upload.py \
   examples/sample.md \
   doxcnAbCdEf1234567890 \
   --mode json \
@@ -158,7 +158,7 @@ python scripts/md_to_feishu_upload.py \
 # Test 1: Authentication
 # Test 2: Block format conversion
 # Test 3: Document ID validation
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 ```
 
 ### Test with Sample File
@@ -166,7 +166,7 @@ python scripts/test_api_connectivity.py
 ```bash
 # Create a test document in Feishu first
 # Then run:
-python scripts/md_to_feishu_upload.py \
+uv run python scripts/md_to_feishu_upload.py \
   examples/sample.md \
   <YOUR_DOC_ID> \
   --verbose
@@ -234,7 +234,7 @@ See [FEISHU_CONFIG.md](https://github.com/cso1z/Feishu-MCP/blob/main/FEISHU_CONF
 
 ```python
 # 1. Convert to JSON
-python scripts/md_to_feishu.py file.md doc_id --output /tmp/blocks.json
+uv run python scripts/md_to_feishu.py file.md doc_id --output /tmp/blocks.json
 
 # 2. AI reads JSON and calls MCP
 # (In AI assistant)
@@ -244,7 +244,7 @@ python scripts/md_to_feishu.py file.md doc_id --output /tmp/blocks.json
 
 ```python
 # 1. Upload directly
-python scripts/md_to_feishu_upload.py file.md doc_id
+uv run python scripts/md_to_feishu_upload.py file.md doc_id
 
 # Done! No AI needed
 ```

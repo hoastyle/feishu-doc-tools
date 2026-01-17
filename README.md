@@ -80,7 +80,7 @@ Markdown文件 → Python脚本 → JSON → AI调用MCP工具 → 飞书文档
 uv sync
 
 # 测试 API 连接
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 ```
 
 ### 常见使用场景
@@ -88,48 +88,48 @@ python scripts/test_api_connectivity.py
 #### 场景 1：上传单个文档到云文档
 
 ```bash
-python scripts/create_feishu_doc.py README.md --title "项目文档"
+uv run python scripts/create_feishu_doc.py README.md --title "项目文档"
 ```
 
 #### 场景 2：批量上传文件夹到云文档
 
 ```bash
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 ```
 
 #### 场景 3：上传到 Wiki 知识库（推荐）
 
 ```bash
 # 列出可用空间
-python scripts/create_wiki_doc.py --list-spaces
+uv run python scripts/create_wiki_doc.py --list-spaces
 
 # 上传到指定空间
-python scripts/create_wiki_doc.py README.md --space-id 74812***88644
+uv run python scripts/create_wiki_doc.py README.md --space-id 74812***88644
 
 # 使用个人知识库（自动检测）
-python scripts/create_wiki_doc.py README.md --personal --auto-permission
+uv run python scripts/create_wiki_doc.py README.md --personal --auto-permission
 ```
 
 #### 场景 4：批量上传到 Wiki
 
 ```bash
 # 批量上传到 Wiki 空间
-python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
 
 # 批量上传到个人知识库
-python scripts/batch_create_wiki_docs.py ./docs --personal
+uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 ```
 
 #### 场景 5：Markdown 表格转多维表格
 
 ```bash
-python scripts/md_table_to_bitable.py data.md --auto-types
+uv run python scripts/md_table_to_bitable.py data.md --auto-types
 ```
 
 #### 场景 6：大文档快速上传（性能优化）
 
 ```bash
-python scripts/md_to_feishu.py 大文档.md --parallel
+uv run python scripts/md_to_feishu.py 大文档.md --parallel
 ```
 
 ---

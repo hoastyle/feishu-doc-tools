@@ -7,16 +7,16 @@ creating them as nodes in the Wiki hierarchy.
 
 Usage:
     # Upload to specific Wiki space (root level)
-    python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
 
     # Upload to personal knowledge base
-    python scripts/batch_create_wiki_docs.py ./docs --personal
+    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 
     # Upload to specific parent node
-    python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
+    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
 
     # Custom file pattern
-    python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
+    uv run uv run python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
 """
 
 import argparse
@@ -175,19 +175,19 @@ def main():
         epilog="""
 Examples:
   # Upload all .md files to Wiki space (root level)
-  python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
 
   # Upload to personal knowledge base
-  python scripts/batch_create_wiki_docs.py ./docs --personal
+  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 
   # Upload to specific parent node (subdirectory)
-  python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
+  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --parent nodcnxxxxx
 
   # Custom file pattern
-  python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
+  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --pattern "*.md"
 
   # Dry run (scan without creating)
-  python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --dry-run
+  uv run uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644 --dry-run
         """,
     )
     parser.add_argument(

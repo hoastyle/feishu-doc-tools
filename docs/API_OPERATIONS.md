@@ -517,16 +517,16 @@ logger.info(f"Created: {result['document_id']}")
 
 ```bash
 # Create in root folder
-python scripts/create_feishu_doc.py README.md
+uv run python scripts/create_feishu_doc.py README.md
 
 # Create with custom title
-python scripts/create_feishu_doc.py README.md --title "My Document"
+uv run python scripts/create_feishu_doc.py README.md --title "My Document"
 
 # Create in specific folder
-python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
+uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 
 # Custom credentials
-python scripts/create_feishu_doc.py README.md \
+uv run python scripts/create_feishu_doc.py README.md \
   --app-id cli_xxxxx --app-secret xxxxx
 ```
 
@@ -534,16 +534,16 @@ python scripts/create_feishu_doc.py README.md \
 
 ```bash
 # Create from all .md files
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 
 # Create in specific folder
-python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
 # Custom file pattern
-python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
+uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
 
 # Recursive search
-python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 ```
 
 ## See Also

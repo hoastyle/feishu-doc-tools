@@ -61,20 +61,20 @@
 #### `scripts/create_feishu_doc.py` - 单文档创建
 ```bash
 # 基本用法
-python scripts/create_feishu_doc.py README.md
+uv run python scripts/create_feishu_doc.py README.md
 
 # 自定义标题
-python scripts/create_feishu_doc.py README.md --title "我的文档"
+uv run python scripts/create_feishu_doc.py README.md --title "我的文档"
 
 # 指定文件夹
-python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
+uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 
 # 自定义凭证
-python scripts/create_feishu_doc.py README.md \
+uv run python scripts/create_feishu_doc.py README.md \
   --app-id cli_xxxxx --app-secret xxxxx
 
 # 调试输出
-python scripts/create_feishu_doc.py README.md -v
+uv run python scripts/create_feishu_doc.py README.md -v
 ```
 
 **特性：**
@@ -86,19 +86,19 @@ python scripts/create_feishu_doc.py README.md -v
 #### `scripts/batch_create_docs.py` - 批量创建
 ```bash
 # 基本用法
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 
 # 指定目标文件夹
-python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
 # 自定义文件匹配
-python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 
 # 自定义扩展名
-python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
+uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
 
 # 调试模式
-python scripts/batch_create_docs.py ./docs -v
+uv run python scripts/batch_create_docs.py ./docs -v
 ```
 
 **特性：**
@@ -229,7 +229,7 @@ FEISHU_APP_SECRET=xxxxx
 ### 场景1：迁移单个文档
 ```bash
 # 从README.md创建新文档
-python scripts/create_feishu_doc.py README.md --title "项目说明"
+uv run python scripts/create_feishu_doc.py README.md --title "项目说明"
 
 # 结果：新文档在飞书中创建
 ```
@@ -245,7 +245,7 @@ echo "# 用户指南" > ./docs_feishu/guide.md
 echo "# FAQ" > ./docs_feishu/faq.md
 
 # 批量创建文档
-python scripts/batch_create_docs.py ./docs_feishu
+uv run python scripts/batch_create_docs.py ./docs_feishu
 
 # 结果：3个文档在飞书中创建
 ```
@@ -253,13 +253,13 @@ python scripts/batch_create_docs.py ./docs_feishu
 ### 场景3：分类迁移
 ```bash
 # 只迁移特定类型的文档
-python scripts/batch_create_docs.py ./docs --pattern "**/api/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/api/*.md"
 
 # 只迁移最新的文档
-python scripts/batch_create_docs.py ./docs --pattern "**/*2024*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*2024*.md"
 
 # 递归迁移所有markdown
-python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 ```
 
 ### 场景4：编程方式使用

@@ -25,13 +25,13 @@ cp .env.example .env
 # 编辑 .env，填入 FEISHU_APP_ID 和 FEISHU_APP_SECRET
 
 # 2. 测试连接
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 
 # 3a. 上传单个文档
-python scripts/create_feishu_doc.py README.md
+uv run python scripts/create_feishu_doc.py README.md
 
 # 3b. 批量上传文件夹
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 ```
 
 ---
@@ -81,10 +81,10 @@ python scripts/batch_create_docs.py ./docs
 
 ```bash
 # 基础用法
-python scripts/create_feishu_doc.py README.md
+uv run python scripts/create_feishu_doc.py README.md
 
 # 指定标题和文件夹
-python scripts/create_feishu_doc.py README.md \
+uv run python scripts/create_feishu_doc.py README.md \
   --title "项目文档" \
   --folder fldcnxxxxx
 ```
@@ -101,10 +101,10 @@ python scripts/create_feishu_doc.py README.md \
 
 ```bash
 # 批量上传
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 
 # 指定目标文件夹
-python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 ```
 
 **详细文档**: [BATCH_OPERATIONS.md](BATCH_OPERATIONS.md)
@@ -119,16 +119,16 @@ python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
 ```bash
 # 列出可用 Wiki 空间
-python scripts/create_wiki_doc.py --list-spaces
+uv run python scripts/create_wiki_doc.py --list-spaces
 
 # 上传到指定空间
-python scripts/create_wiki_doc.py README.md --space-id 74812***88644
+uv run python scripts/create_wiki_doc.py README.md --space-id 74812***88644
 
 # 上传到个人知识库（自动检测）
-python scripts/create_wiki_doc.py README.md --personal
+uv run python scripts/create_wiki_doc.py README.md --personal
 
 # 上传到指定节点（子目录）
-python scripts/create_wiki_doc.py README.md \
+uv run python scripts/create_wiki_doc.py README.md \
   --space-id 74812***88644 \
   --parent-token nodcnxxxxx
 ```
@@ -139,13 +139,13 @@ python scripts/create_wiki_doc.py README.md \
 
 ```bash
 # 批量上传到 Wiki 空间根目录
-python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
+uv run python scripts/batch_create_wiki_docs.py ./docs --space-id 74812***88644
 
 # 批量上传到个人知识库
-python scripts/batch_create_wiki_docs.py ./docs --personal
+uv run python scripts/batch_create_wiki_docs.py ./docs --personal
 
 # 批量上传到指定节点
-python scripts/batch_create_wiki_docs.py ./docs \
+uv run python scripts/batch_create_wiki_docs.py ./docs \
   --space-id 74812***88644 \
   --parent-token nodcnxxxxx
 ```
@@ -162,13 +162,13 @@ python scripts/batch_create_wiki_docs.py ./docs \
 
 ```bash
 # 基础转换
-python scripts/md_table_to_bitable.py data.md
+uv run python scripts/md_table_to_bitable.py data.md
 
 # 自定义名称
-python scripts/md_table_to_bitable.py data.md --name "项目追踪表"
+uv run python scripts/md_table_to_bitable.py data.md --name "项目追踪表"
 
 # 自动类型检测
-python scripts/md_table_to_bitable.py data.md --auto-types
+uv run python scripts/md_table_to_bitable.py data.md --auto-types
 ```
 
 **详细文档**: [BITABLE_OPERATIONS.md](BITABLE_OPERATIONS.md)
@@ -181,7 +181,7 @@ python scripts/md_table_to_bitable.py data.md --auto-types
 
 ```bash
 # 启用并行上传
-python scripts/md_to_feishu.py 大文档.md --parallel
+uv run python scripts/md_to_feishu.py 大文档.md --parallel
 ```
 
 **详细文档**: [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md)
@@ -266,7 +266,7 @@ FEISHU_AUTH_TYPE=tenant              # 认证类型
 
 3. 测试连接
    ```bash
-   python scripts/test_api_connectivity.py
+   uv run python scripts/test_api_connectivity.py
    ```
 
 ---
@@ -277,30 +277,30 @@ FEISHU_AUTH_TYPE=tenant              # 认证类型
 
 ```bash
 # 方法1: 列出所有 Wiki 空间
-python scripts/create_wiki_doc.py --list-spaces
+uv run python scripts/create_wiki_doc.py --list-spaces
 
 # 方法2: 使用个人知识库（自动检测）
-python scripts/create_wiki_doc.py README.md --personal
+uv run python scripts/create_wiki_doc.py README.md --personal
 ```
 
 ### Q: 如何获取 folder_token？
 
 ```bash
 # 获取根文件夹信息
-python scripts/get_root_info.py
+uv run python scripts/get_root_info.py
 
 # 列出文件夹内容
-python scripts/list_folders.py
+uv run python scripts/list_folders.py
 ```
 
 ### Q: 批量上传失败怎么办？
 
 ```bash
 # 1. 启用详细日志
-python scripts/batch_create_docs.py ./docs -v
+uv run python scripts/batch_create_docs.py ./docs -v
 
 # 2. 检查文档
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 
 # 3. 参考故障排除指南
 # [TROUBLESHOOTING.md](TROUBLESHOOTING.md)

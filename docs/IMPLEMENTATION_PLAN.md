@@ -200,8 +200,8 @@ FEISHU_BATCH_SIZE=200                         ✅ 新增
 
 用法：
 ```bash
-python scripts/create_feishu_doc.py README.md --title "我的文档"
-python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
+uv run python scripts/create_feishu_doc.py README.md --title "我的文档"
+uv run python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 ```
 
 ### ✅ 步骤5：新增CLI脚本 - batch_create_docs.py
@@ -210,9 +210,9 @@ python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 
 用法：
 ```bash
-python scripts/batch_create_docs.py ./docs
-python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
-python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+uv run python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 ```
 
 ### ✅ 步骤6：更新.env.example
@@ -313,7 +313,7 @@ Coverage: 35% (CLI脚本未在单元测试中覆盖)
 
 **测试1：创建单个文档** ✅
 ```bash
-python scripts/create_feishu_doc.py README.md --title "测试文档"
+uv run python scripts/create_feishu_doc.py README.md --title "测试文档"
 
 输出：
 INFO: Creating document: 测试文档
@@ -329,7 +329,7 @@ Batches:       1
 
 **测试2：在特定文件夹中创建** ✅
 ```bash
-python scripts/create_feishu_doc.py examples/sample.md \
+uv run python scripts/create_feishu_doc.py examples/sample.md \
   --title "示例文档" \
   --folder fldcnxxxxx
 ```
@@ -341,7 +341,7 @@ echo "# Doc 1" > /tmp/test_docs/doc1.md
 echo "# Doc 2" > /tmp/test_docs/doc2.md
 echo "# Doc 3" > /tmp/test_docs/doc3.md
 
-python scripts/batch_create_docs.py /tmp/test_docs
+uv run python scripts/batch_create_docs.py /tmp/test_docs
 
 输出：
 📊 Batch Creation Summary
@@ -358,11 +358,11 @@ Total Files:    3
 **测试4：错误处理** ✅
 ```bash
 # 测试无效凭证
-FEISHU_APP_ID=invalid python scripts/create_feishu_doc.py README.md
+FEISHU_APP_ID=invalid uv run python scripts/create_feishu_doc.py README.md
 # 预期：FeishuApiAuthError，清晰的错误消息
 
 # 测试无效文件夹
-python scripts/create_feishu_doc.py README.md --folder invalid_token
+uv run python scripts/create_feishu_doc.py README.md --folder invalid_token
 # 预期：FeishuApiRequestError，清晰的错误消息
 ```
 

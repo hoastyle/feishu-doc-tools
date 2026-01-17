@@ -32,10 +32,10 @@ Add `--parallel` flag to enable parallel uploads:
 
 ```bash
 # Serial upload (default)
-python scripts/md_to_feishu.py README.md
+uv run python scripts/md_to_feishu.py README.md
 
 # Parallel upload (faster)
-python scripts/md_to_feishu.py README.md --parallel
+uv run python scripts/md_to_feishu.py README.md --parallel
 ```
 
 ### Programmatic Usage
@@ -245,7 +245,7 @@ print(f"Speedup: {serial_time / parallel_time:.2f}x")
 **Solutions:**
 ```bash
 # Enable parallel mode
-python scripts/md_to_feishu.py file.md --parallel
+uv run python scripts/md_to_feishu.py file.md --parallel
 
 # Or increase workers programmatically
 result = client.batch_create_blocks_parallel(

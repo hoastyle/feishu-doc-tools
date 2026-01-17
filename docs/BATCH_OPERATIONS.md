@@ -18,7 +18,7 @@ Batch operations allow you to migrate an entire folder of markdown documents to 
 Create documents from all `.md` files in a folder:
 
 ```bash
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 ```
 
 ### With Custom Folder
@@ -26,7 +26,7 @@ python scripts/batch_create_docs.py ./docs
 Create documents in a specific Feishu folder:
 
 ```bash
-python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 ```
 
 ### Custom File Pattern
@@ -35,13 +35,13 @@ Create documents only from specific files:
 
 ```bash
 # All markdown files in subfolders
-python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 
 # Custom extension
-python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
+uv run python scripts/batch_create_docs.py ./docs --pattern "*.markdown"
 
 # Multiple patterns
-python scripts/batch_create_docs.py ./docs --pattern "**/*documentation*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*documentation*.md"
 ```
 
 ## Python API
@@ -105,7 +105,7 @@ result = batch_create_documents_from_folder(
 
 ```bash
 # Migrate all documentation to Feishu
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 
 # Result:
 # 📊 Batch Creation Summary
@@ -118,10 +118,10 @@ python scripts/batch_create_docs.py ./docs
 
 ```bash
 # Create source folder structure in Feishu first
-python scripts/create_feishu_doc.py --title "Documentation"  # Get folder token
+uv run python scripts/create_feishu_doc.py --title "Documentation"  # Get folder token
 
 # Create documents in that folder
-python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
+uv run python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
 # Result: All docs organized in one place
 ```
@@ -130,13 +130,13 @@ python scripts/batch_create_docs.py ./docs --folder fldcnxxxxx
 
 ```bash
 # Only migrate specific documentation
-python scripts/batch_create_docs.py ./docs --pattern "**/guide/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/guide/*.md"
 
 # Only API documentation
-python scripts/batch_create_docs.py ./docs --pattern "**/api/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/api/*.md"
 
 # Exclude archived files
-python scripts/batch_create_docs.py ./docs --pattern "**/[!archive]*/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/[!archive]*/*.md"
 ```
 
 ### 4. Preview Before Creating
@@ -217,7 +217,7 @@ root_token = client.get_root_folder_token()
 print(f"Use this token: {root_token}")
 
 # Or don't specify --folder (uses root)
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 ```
 
 **Issue: File Pattern Matches Nothing**
@@ -232,10 +232,10 @@ Solution:
 find ./docs -name "*.md"
 
 # Try different pattern
-python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
+uv run python scripts/batch_create_docs.py ./docs --pattern "**/*.md"
 
 # Include debugging
-python scripts/batch_create_docs.py ./docs -v
+uv run python scripts/batch_create_docs.py ./docs -v
 ```
 
 ## Advanced Usage
@@ -395,7 +395,7 @@ results = batch_create_parallel("./docs", max_workers=5)
 
 ```bash
 # Enable debug logging
-python scripts/batch_create_docs.py ./docs -v
+uv run python scripts/batch_create_docs.py ./docs -v
 
 # Output will show:
 # DEBUG: Requesting tenant token from ...

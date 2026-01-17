@@ -234,13 +234,13 @@ uv run pytest tests/
 ### 使用修复后的功能
 ```bash
 # 创建包含代码块的大文档
-python scripts/create_feishu_doc.py large_document.md --title "大文档"
+uv run python scripts/create_feishu_doc.py large_document.md --title "大文档"
 
 # 批量创建从100个markdown文件
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 
 # 调试模式
-python scripts/batch_create_docs.py ./docs -v
+uv run python scripts/batch_create_docs.py ./docs -v
 ```
 
 ---

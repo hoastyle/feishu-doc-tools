@@ -173,10 +173,10 @@ for failure in result['failures']:
 **重试失败的文件：**
 ```bash
 # 只重试特定文件
-python scripts/create_feishu_doc.py path/to/failed_file.md
+uv run python scripts/create_feishu_doc.py path/to/failed_file.md
 
 # 或查看失败原因后重试整个文件夹
-python scripts/batch_create_docs.py ./docs -v  # 启用详细日志
+uv run python scripts/batch_create_docs.py ./docs -v  # 启用详细日志
 ```
 
 ---
@@ -192,7 +192,7 @@ Timeout waiting for API response
 
 1. **检查网络连接：**
    ```bash
-   python scripts/test_api_connectivity.py
+   uv run python scripts/test_api_connectivity.py
    ```
 
 2. **减少批大小（如有效）：**
@@ -259,7 +259,7 @@ except Exception as e:
 
 ```bash
 # 方式1：使用 CLI 详细模式
-python scripts/create_feishu_doc.py README.md -v
+uv run python scripts/create_feishu_doc.py README.md -v
 
 # 方式2：Python 代码
 import logging
@@ -279,7 +279,7 @@ print(json.dumps(response_text, indent=2, ensure_ascii=False))
 
 ```bash
 # 检查转换输出
-python scripts/md_to_feishu.py README.md doxcnxxxxx \
+uv run python scripts/md_to_feishu.py README.md doxcnxxxxx \
   --output /tmp/blocks.json
 
 # 查看生成的块
@@ -290,7 +290,7 @@ python -c "import json; print(json.dumps(json.load(open('/tmp/blocks.json')), in
 
 ```bash
 # 使用内置连通性测试
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 ```
 
 ---
@@ -300,7 +300,7 @@ python scripts/test_api_connectivity.py
 ### 1. 验证前准备
 ```bash
 # 总是先验证凭证和连接
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 
 # 验证文件存在
 ls -lh README.md
@@ -312,16 +312,16 @@ python -c "import markdown; markdown.markdown(open('README.md').read())"
 ### 2. 小规模测试
 ```bash
 # 先用单个文件测试
-python scripts/create_feishu_doc.py README.md --title "测试"
+uv run python scripts/create_feishu_doc.py README.md --title "测试"
 
 # 然后批量创建
-python scripts/batch_create_docs.py ./docs
+uv run python scripts/batch_create_docs.py ./docs
 ```
 
 ### 3. 启用日志记录
 ```bash
 # 捕获详细日志以便调试
-python scripts/batch_create_docs.py ./docs -v > batch_create.log 2>&1
+uv run python scripts/batch_create_docs.py ./docs -v > batch_create.log 2>&1
 
 # 查看日志
 tail -f batch_create.log
@@ -356,7 +356,7 @@ watch -n 5 "ls -l /path/to/docs | wc -l"
 # 收集诊断信息
 python -c "import sys; print(f'Python {sys.version}')"
 uv --version
-python scripts/test_api_connectivity.py
+uv run python scripts/test_api_connectivity.py
 ```
 
 ---

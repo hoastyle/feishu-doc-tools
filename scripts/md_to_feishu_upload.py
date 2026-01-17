@@ -11,10 +11,10 @@ Usage:
     export FEISHU_APP_SECRET=xxxxx
 
     # Upload directly
-    python scripts/md_to_feishu_upload.py README.md doxcnxxxxx
+    uv run uv run python scripts/md_to_feishu_upload.py README.md doxcnxxxxx
 
     # Or use JSON mode (for AI/MCP workflow)
-    python scripts/md_to_feishu_upload.py README.md doxcnxxxxx --mode json
+    uv run uv run python scripts/md_to_feishu_upload.py README.md doxcnxxxxx --mode json
 """
 
 import argparse

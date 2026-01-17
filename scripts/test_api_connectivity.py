@@ -10,12 +10,12 @@ This script tests:
 Usage:
     # Option 1: Use .env file (recommended)
     # Will auto-discover: .env, ../Feishu-MCP/.env
-    python scripts/test_api_connectivity.py
+    uv run uv run python scripts/test_api_connectivity.py
 
     # Option 2: Set environment variables
     export FEISHU_APP_ID=cli_xxxxx
     export FEISHU_APP_SECRET=xxxxx
-    python scripts/test_api_connectivity.py
+    uv run uv run python scripts/test_api_connectivity.py
 
     # Option 3: Specify custom .env file
     python -c "from lib.feishu_api_client import FeishuApiClient; \
@@ -219,7 +219,7 @@ def print_test_summary(results: dict):
         print("1. Create a test document in Feishu")
         print("2. Get the document ID from the URL")
         print("3. Test uploading Markdown:")
-        print("   python scripts/test_api_upload.py <doc_id>")
+        print("   uv run uv run python scripts/test_api_upload.py <doc_id>")
     else:
         print("⚠️  Some tests failed. Please fix the issues above.")
 
