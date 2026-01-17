@@ -1,0 +1,147 @@
+{
+  "projectName": "md-to-feishu",
+  "description": "Convert Markdown files to Feishu documents without loading content into AI context",
+  "version": "0.1.0",
+  "status": "production",
+  "generatedAt": "2026-01-17T12:57:00Z",
+  
+  "structure": {
+    "scripts": {
+      "path": "scripts/",
+      "description": "Core conversion scripts",
+      "files": {
+        "md_to_feishu.py": {
+          "size": "558 lines",
+          "type": "CLI Tool",
+          "purpose": "Markdown to Feishu blocks conversion",
+          "mainClass": "MarkdownToFeishuConverter",
+          "entryPoint": "main()"
+        }
+      }
+    },
+    "lib": {
+      "path": "lib/",
+      "description": "Library modules",
+      "files": {
+        "feishu_md_uploader.py": {
+          "size": "247 lines",
+          "type": "API Library",
+          "purpose": "MCP tool integration and upload instruction generation",
+          "mainClass": "FeishuMdUploader",
+          "entryPoint": "upload_md_to_feishu()"
+        }
+      }
+    },
+    "tests": {
+      "path": "tests/",
+      "description": "Test suite",
+      "files": {
+        "test_md_to_feishu.py": {
+          "size": "273 lines",
+          "type": "Test Suite",
+          "testCount": 12,
+          "passed": 11,
+          "skipped": 1,
+          "coverage": "60%"
+        }
+      }
+    },
+    "docs": {
+      "path": "docs/",
+      "description": "Documentation",
+      "files": {
+        "USAGE.md": "Detailed usage guide",
+        "DESIGN.md": "Architecture and design documentation"
+      }
+    }
+  },
+  
+  "dependencies": {
+    "core": [
+      {"name": "markdown-it-py", "version": "4.0.0", "purpose": "Markdown parsing"},
+      {"name": "mdit-py-plugins", "version": "0.5.0", "purpose": "Markdown extensions"}
+    ],
+    "dev": [
+      {"name": "pytest", "version": "7.0.0+", "purpose": "Testing framework"},
+      {"name": "pytest-cov", "version": "4.0.0+", "purpose": "Coverage reporting"},
+      {"name": "black", "version": "23.0.0+", "purpose": "Code formatting"}
+    ]
+  },
+  
+  "supportedMarkdownElements": [
+    "headings (h1-h6)",
+    "paragraphs with inline styles",
+    "bold, italic, inline code, strikethrough",
+    "code blocks (50+ languages)",
+    "ordered and unordered lists",
+    "local images",
+    "blockquotes"
+  ],
+  
+  "features": {
+    "implemented": [
+      "Markdown to JSON conversion",
+      "Automatic batch processing (50 blocks per batch)",
+      "Local image handling",
+      "50+ programming language support",
+      "MCP tool integration",
+      "AI instruction generation",
+      "Comprehensive error handling"
+    ],
+    "planned": [
+      "Table support",
+      "Mathematical formulas",
+      "Download image mode",
+      "Bidirectional sync"
+    ]
+  },
+  
+  "entryPoints": [
+    {
+      "type": "CLI",
+      "path": "scripts/md_to_feishu.py",
+      "command": "uv run python scripts/md_to_feishu.py <file> <doc_id> [options]",
+      "description": "Command-line tool for conversion"
+    },
+    {
+      "type": "API",
+      "path": "lib/feishu_md_uploader.py",
+      "function": "upload_md_to_feishu(md_file: str, doc_id: str) -> str",
+      "description": "Python function for AI integration"
+    },
+    {
+      "type": "Test",
+      "path": "tests/test_md_to_feishu.py",
+      "command": "uv run pytest tests/",
+      "description": "Test suite"
+    }
+  ],
+  
+  "statistics": {
+    "totalLines": 1100,
+    "coreScriptLines": 558,
+    "libraryLines": 247,
+    "testLines": 273,
+    "docLines": 4000,
+    "gitCommits": 5,
+    "testPassRate": "91.7%"
+  },
+  
+  "testing": {
+    "framework": "pytest",
+    "coverage": "60%",
+    "testCount": 12,
+    "passedCount": 11,
+    "skippedCount": 1,
+    "command": "uv run pytest tests/"
+  },
+  
+  "quickStart": {
+    "step1": "uv sync",
+    "step2": "uv run python scripts/md_to_feishu.py example.md doc_id",
+    "step3": "uv run pytest tests/"
+  },
+  
+  "pythonVersion": "3.8.1+",
+  "license": "MIT"
+}
