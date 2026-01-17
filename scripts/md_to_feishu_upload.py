@@ -73,8 +73,8 @@ def upload_direct(
     # Step 1: Convert Markdown to blocks
     logger.info("Step 1: Converting Markdown to blocks...")
     converter = MarkdownToFeishuConverter(
-        md_file_path=md_file,
-        document_id=doc_id,
+        md_file=md_file,
+        doc_id=doc_id,
         batch_size=batch_size,
         image_mode=image_mode
     )
@@ -143,8 +143,8 @@ def upload_json(
 
     # Convert using existing script
     converter = MarkdownToFeishuConverter(
-        md_file_path=md_file,
-        document_id=doc_id,
+        md_file=md_file,
+        doc_id=doc_id,
         batch_size=batch_size,
         image_mode=image_mode
     )

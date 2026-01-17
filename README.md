@@ -57,18 +57,30 @@ uv sync --extra dev
 
 ### 基本用法
 
-#### 方式1：上传到现有文档（推荐）
+#### 方式1：在个人知识库创建文档（推荐 ✨）
 
 ```bash
 # 1. 设置飞书应用凭证
 export FEISHU_APP_ID=cli_xxxxx
 export FEISHU_APP_SECRET=xxxxx
 
-# 2. 上传Markdown内容到现有文档
+# 2. 在个人知识库创建文档（自动检测"个人知识库"空间 + 自动添加权限）
+python scripts/create_wiki_doc.py README.md --personal --auto-permission
+
+# 3. 查看所有可用的知识空间
+python scripts/create_wiki_doc.py --list-spaces
+```
+
+> **注意**：`--personal` 会自动查找名为"个人知识库"的 wiki space。如果你有多个知识空间，建议先用 `--list-spaces` 查看，然后手动指定 `--space-id`。
+
+#### 方式2：上传到现有文档
+
+```bash
+# 上传Markdown内容到现有文档
 python scripts/md_to_feishu_upload.py README.md doxcnxxxxx
 ```
 
-#### 方式2：创建新文档并上传
+#### 方式3：创建新文档到云盘文件夹
 
 ```bash
 # 从单个Markdown文件创建新文档
@@ -78,7 +90,11 @@ python scripts/create_feishu_doc.py README.md --title "My Document"
 python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 ```
 
-> **⚠️ 重要提示**：默认情况下，新文档会创建在应用空间（只有应用有权限）。
+> **⚠️ 重要提示**：
+>
+> **推荐方式**：使用 `--personal --auto-permission` 在个人知识库创建文档，自动获得正确权限。
+>
+> **云盘文件夹方式**：默认情况下，新文档会创建在应用空间（只有应用有权限）。
 >
 > **解决方案**：设置 `FEISHU_DEFAULT_FOLDER_TOKEN` 环境变量，指向你的云文档文件夹：
 >
@@ -92,7 +108,7 @@ python scripts/create_feishu_doc.py README.md --folder fldcnxxxxx
 > 2. 从 URL 复制文件夹 token（例如：`https://feishu.cn/drive/folder/fldcnxxxxx`）
 > 3. 只需要 `fldcnxxxxx` 部分
 
-#### 方式3：批量迁移
+#### 方式4：批量迁移
 
 ```bash
 # 从整个文件夹批量创建文档
@@ -165,10 +181,12 @@ md-to-feishu/
 ├── scripts/
 │   ├── md_to_feishu.py             # 核心转换脚本（MCP模式）
 │   ├── md_to_feishu_upload.py      # 统一上传脚本（支持direct和json模式）
-│   ├── create_feishu_doc.py        # 创建单个文档脚本（新增）
-│   ├── batch_create_docs.py        # 批量创建文档脚本（新增）
-│   ├── test_api_connectivity.py    # API连通性测试
-│   └── create_wiki.py              # Wiki创建脚本（规划）
+│   ├── create_feishu_doc.py        # 创建单个云盘文档脚本
+│   ├── create_wiki_doc.py          # 创建Wiki知识库文档脚本（推荐 ✨）
+│   ├── get_root_info.py            # 获取工作区信息（root_folder、wiki_spaces、my_library）
+│   ├── list_folders.py             # 列出可访问的云盘文件夹
+│   ├── batch_create_docs.py        # 批量创建文档脚本
+│   └── test_api_connectivity.py    # API连通性测试
 ├── lib/
 │   ├── feishu_api_client.py        # 直连API客户端（已扩展）
 │   │   ├── create_document()       # 创建文档
@@ -291,10 +309,11 @@ uv run pytest --cov=scripts --cov=lib tests/
 - [x] API参考文档（API_OPERATIONS.md）
 - [x] 批量操作指南（BATCH_OPERATIONS.md）
 
-### Phase 3：高级功能 🔨 规划中
-- [ ] Wiki操作API（create_wiki_space, create_wiki_node）
+### Phase 3：高级功能 🚧 部分完成
+- [x] Wiki操作API（get_all_wiki_spaces, get_my_library, create_wiki_node）
+- [x] 个人知识库自动检测（--personal flag）
+- [x] 用户权限自动设置（--auto-permission flag）
 - [ ] Bitable操作API（create_bitable, create_table）
-- [ ] Wiki创建脚本（create_wiki.py）
 - [ ] 表格转Bitable脚本（md_table_to_bitable.py）
 - [ ] 性能优化
 - [ ] Download图片模式

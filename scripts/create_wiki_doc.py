@@ -8,18 +8,20 @@ Usage Examples:
     # List available wiki spaces
     python scripts/create_wiki_doc.py --list-spaces
 
-    # Create in "个人知识库" (default)
-    python scripts/create_wiki_doc.py README.md
+    # Create in "My Library" (personal knowledge base) - RECOMMENDED
+    python scripts/create_wiki_doc.py README.md --personal --auto-permission
 
     # Create with custom title in specific space
     python scripts/create_wiki_doc.py README.md --title "User Guide" --space-id 7516222021840306180
 
     # Create as child of another node
-    python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx
+    python scripts/create_wiki_doc.py README.md --parent-token nodcnxxxxx --space-id 7516222021840306180
 
 Features:
     - Lists available wiki spaces
+    - Auto-detects "My Library" with --personal flag
     - Creates wiki nodes in any accessible space
+    - Auto-grants user permission with --auto-permission
     - Uploads markdown content with images
     - Supports creating at root or as child node
     - Detailed progress reporting
@@ -27,8 +29,12 @@ Features:
 Wiki Spaces:
     - Use --list-spaces to see all available spaces
     - Common spaces:
-      - My Library (my_library): Personal document library
+      - My Library (my_library): Personal document library (use --personal)
       - Team spaces: Shared knowledge bases
+
+Quick Start (Recommended):
+    # Create document in your personal knowledge base with proper permissions:
+    python scripts/create_wiki_doc.py README.md --personal --auto-permission
 """
 
 import sys
@@ -86,7 +92,8 @@ def create_wiki_document(
     md_file: Path,
     space_id: str,
     title: str = None,
-    parent_node_token: str = None
+    parent_node_token: str = None,
+    add_user_permission: bool = False
 ):
     """Create a wiki document from markdown file."""
     try:
@@ -121,6 +128,26 @@ def create_wiki_document(
             app_id=client.app_id,
             app_secret=client.app_secret
         )
+
+        # Step 3: Set user permission if requested
+        if add_user_permission:
+            logger.info(f"Step 3: Setting user permissions...")
+
+            # Get user_id from comprehensive info
+            try:
+                info = client.get_comprehensive_info()
+                user_id = info.get("root_folder", {}).get("user_id")
+
+                if user_id:
+                    # Set permission for the user
+                    client.set_document_permission(doc_id, user_id, "view")
+                    client.set_document_permission(doc_id, user_id, "edit")
+                    logger.info(f"  ✓ Granted edit permission to user {user_id}")
+                else:
+                    logger.warning("  ✗ Could not detect user_id from API")
+
+            except Exception as e:
+                logger.warning(f"  ✗ Failed to set user permission: {e}")
 
         # Print results
         print("\n" + "=" * 70)
@@ -169,10 +196,13 @@ Examples:
   # List all available wiki spaces
   python scripts/create_wiki_doc.py --list-spaces
 
-  # Create in personal knowledge base (use space_id)
-  python scripts/create_wiki_doc.py README.md --space-id 7516222021840306180
+  # Create in personal knowledge base with auto-permission (RECOMMENDED)
+  python scripts/create_wiki_doc.py README.md --personal --auto-permission
 
-  # Create with custom title
+  # Create in personal knowledge base without permission flag
+  python scripts/create_wiki_doc.py README.md --personal
+
+  # Create in specific space with custom title
   python scripts/create_wiki_doc.py docs/guide.md --title "User Guide" --space-id 7516222021840306180
 
   # Create as child of another node
@@ -193,6 +223,18 @@ Examples:
         type=str,
         default=None,
         help="Target wiki space ID (use --list-spaces to see available spaces)"
+    )
+
+    parser.add_argument(
+        "--personal",
+        action="store_true",
+        help="Use 'My Library' (personal knowledge base) - automatically detects space_id"
+    )
+
+    parser.add_argument(
+        "--auto-permission",
+        action="store_true",
+        help="Automatically grant edit permission to current user"
     )
 
     parser.add_argument(
@@ -261,17 +303,52 @@ Examples:
         logger.warning(f"File extension is not .md: {args.md_file}")
 
     # Validate space_id
-    if not args.space_id:
-        logger.error("--space-id is required. Use --list-spaces to see available spaces.")
+    space_id = args.space_id
+    if args.personal:
+        # Auto-detect "个人知识库" space_id
+        logger.info("Auto-detecting '个人知识库' space...")
+        try:
+            # Get all wiki spaces and find the one named "个人知识库"
+            all_spaces = client.get_all_wiki_spaces()
+            personal_space = None
+            for space in all_spaces:
+                if space.get("name") == "个人知识库":
+                    personal_space = space
+                    break
+
+            if not personal_space:
+                # Fallback: try to find spaces with "个人" or "知识库" in name
+                for space in all_spaces:
+                    name = space.get("name", "")
+                    if "个人" in name or "知识库" in name or "Personal" in name or "Library" in name:
+                        logger.warning(f"  ⚠️  Exact match not found, using: {name}")
+                        personal_space = space
+                        break
+
+            if not personal_space:
+                logger.error("Could not find '个人知识库' space")
+                logger.info("Available spaces:")
+                for space in all_spaces:
+                    logger.info(f"  - {space.get('name')} (space_id: {space.get('space_id')})")
+                return 1
+
+            space_id = personal_space.get("space_id")
+            logger.info(f"  ✓ Detected '个人知识库': {personal_space.get('name')} (space_id: {space_id})")
+        except Exception as e:
+            logger.error(f"Failed to auto-detect '个人知识库': {e}")
+            return 1
+    elif not space_id:
+        logger.error("--space-id is required (or use --personal). Use --list-spaces to see available spaces.")
         return 1
 
     # Create wiki document
     result = create_wiki_document(
         client=client,
         md_file=args.md_file,
-        space_id=args.space_id,
+        space_id=space_id,
         title=args.title,
-        parent_node_token=args.parent_token
+        parent_node_token=args.parent_token,
+        add_user_permission=args.auto_permission
     )
 
     return 0 if result.get("success") else 1
