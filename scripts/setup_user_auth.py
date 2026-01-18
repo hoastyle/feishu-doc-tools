@@ -168,7 +168,7 @@ def main():
         print_section("步骤 3: 交换令牌")
 
         try:
-            result = client.exchange_authorization_code(authorization_code)
+            result = client.exchange_authorization_code(authorization_code, redirect_uri=redirect_uri)
 
             print("\n✓ 令牌交换成功!")
             print(f"\n用户信息:")
@@ -193,22 +193,15 @@ def main():
                 print(f"\n  FEISHU_AUTH_MODE=user")
                 print(f"  FEISHU_USER_REFRESH_TOKEN={result['refresh_token']}")
 
-            # 验证配置
-            print_section("步骤 5: 验证配置")
-
-            print("\n正在验证用户认证...")
-            test_client = FeishuApiClient.from_env(env_path)
-            if test_client.auth_mode == AuthMode.USER:
-                try:
-                    user_info = test_client.get_user_info()
-                    print("\n✓ 用户认证验证成功!")
-                    print(f"  当前用户: {user_info.get('name')} ({user_info.get('email')})")
-                except Exception as e:
-                    print(f"\n⚠️  验证失败: {e}")
-                    print("  请检查配置是否正确")
-
+            # 注意：不在这里验证配置
+            # 因为 refresh_token 只能使用一次，验证会导致token被消耗
+            # 用户在实际使用时（如 create_wiki_doc.py）会自动刷新token
             print_section("完成")
             print("\n✓ 用户认证设置完成!")
+            print("\n⚠️  重要提示:")
+            print("  - Refresh token 只能使用一次")
+            print("  - 每次刷新后会获得新的 refresh token")
+            print("  - 新 token 会自动保存到 .env 文件")
             print("\n现在可以使用用户身份调用飞书 API:")
             print("  uv run python scripts/create_wiki_doc.py README.md --personal")
             print("\n创建的文档将属于您，而非应用。")

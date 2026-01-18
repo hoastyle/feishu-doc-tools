@@ -142,7 +142,9 @@ class FeishuApiClient:
         self._user_access_token: Optional[str] = None
         self._user_refresh_token: Optional[str] = user_refresh_token
         self._user_token_expire_time: Optional[int] = None
-        self._user_token_lock = threading.Lock()
+        # Use RLock (reentrant lock) to allow nested lock acquisition
+        # This is needed because refresh_user_token() calls set_user_token() while holding the lock
+        self._user_token_lock = threading.RLock()
 
         # Try to load user tokens from environment if using user mode
         if auth_mode == AuthMode.USER and not user_refresh_token:
@@ -198,7 +200,7 @@ class FeishuApiClient:
         Environment variables:
             FEISHU_APP_ID: Feishu app ID
             FEISHU_APP_SECRET: Feishu app secret
-            FEISHU_AUTH_MODE: Authentication mode (tenant or user, default: tenant)
+            FEISHU_AUTH_TYPE or FEISHU_AUTH_MODE: Authentication mode (tenant or user, default: tenant)
             FEISHU_USER_REFRESH_TOKEN: Refresh token for user authentication (if auth_mode=user)
 
         Args:
@@ -264,7 +266,9 @@ class FeishuApiClient:
             )
 
         # Determine authentication mode
-        auth_mode_str = os.environ.get("FEISHU_AUTH_MODE", "tenant").lower()
+        # Support both FEISHU_AUTH_TYPE (compatible with Feishu-MCP) and FEISHU_AUTH_MODE
+        auth_mode_str = os.environ.get("FEISHU_AUTH_TYPE") or os.environ.get("FEISHU_AUTH_MODE", "tenant")
+        auth_mode_str = auth_mode_str.lower()
         auth_mode = AuthMode.USER if auth_mode_str == "user" else AuthMode.TENANT
 
         # Get user refresh token if using user mode
@@ -273,7 +277,7 @@ class FeishuApiClient:
             user_refresh_token = os.environ.get("FEISHU_USER_REFRESH_TOKEN")
             if not user_refresh_token:
                 logger.warning(
-                    "FEISHU_AUTH_MODE=user but FEISHU_USER_REFRESH_TOKEN not set. "
+                    "FEISHU_AUTH_TYPE/FEISHU_AUTH_MODE=user but FEISHU_USER_REFRESH_TOKEN not set. "
                     "You'll need to call set_user_token() or exchange_authorization_code() first."
                 )
 
@@ -379,7 +383,9 @@ class FeishuApiClient:
             self._user_token_expire_time = int(time.time()) + expires_in
             logger.info("User access token set successfully")
 
-    def exchange_authorization_code(self, authorization_code: str) -> Dict[str, Any]:
+    def exchange_authorization_code(
+        self, authorization_code: str, redirect_uri: str = "http://localhost:3333/callback"
+    ) -> Dict[str, Any]:
         """
         使用授权码换取用户访问令牌
 
@@ -389,9 +395,11 @@ class FeishuApiClient:
             - 令牌端点使用 /authen/v2/oauth/token
             - v2 API 响应直接在响应体中返回字段（不在 data 对象中）
             - 用户信息需要通过单独的 API 调用获取
+            - redirect_uri 参数必须与授权请求中的 redirect_uri 一致（错误码 20071）
 
         Args:
             authorization_code: OAuth 授权流程中获取的授权码
+            redirect_uri: OAuth 回调地址（必须与授权时使用的一致）
 
         Returns:
             {
@@ -418,6 +426,7 @@ class FeishuApiClient:
             "client_id": self.app_id,
             "client_secret": self.app_secret,
             "code": authorization_code,
+            "redirect_uri": redirect_uri,  # Required: must match the redirect_uri in authorization request
         }
 
         logger.info("Exchanging authorization code for user access token")
@@ -540,10 +549,14 @@ class FeishuApiClient:
         logger.debug("Requesting user token refresh")
         response = self.session.post(url, json=payload, timeout=10)
 
+        logger.debug(f"Refresh response: status={response.status_code}")
+
         if response.status_code != 200:
             raise FeishuApiAuthError(f"Token refresh failed: HTTP {response.status_code}")
 
+        logger.debug("Parsing JSON response...")
         data = response.json()
+        logger.debug(f"Response data keys: {list(data.keys())}")
 
         if data.get("code") != 0:
             error_msg = data.get("msg", "Unknown error")
@@ -554,14 +567,94 @@ class FeishuApiClient:
         refresh_token = data.get("refresh_token")
         expires_in = data.get("expires_in", 7140)
 
+        logger.debug(f"Extracted tokens: has_access={bool(access_token)}, has_refresh={bool(refresh_token)}")
+
         if not access_token:
             raise FeishuApiAuthError("No access_token in refresh response")
 
+        logger.debug("Calling set_user_token...")
         # Update stored tokens
         self.set_user_token(access_token, refresh_token, expires_in)
+        logger.debug("set_user_token completed")
+
+        # 重要：将新的 refresh_token 保存到 .env 文件
+        # 因为飞书的 refresh_token 只能使用一次，必须保存新token
+        if refresh_token:
+            logger.debug("Calling _update_env_refresh_token...")
+            self._update_env_refresh_token(refresh_token)
+            logger.debug("_update_env_refresh_token completed")
 
         logger.info(f"User access token refreshed successfully, expires in {expires_in}s")
         return access_token
+
+    def _update_env_refresh_token(self, new_refresh_token: str):
+        """
+        更新 .env 文件中的 FEISHU_USER_REFRESH_TOKEN
+
+        Note:
+            飞书的 refresh_token 只能使用一次。每次刷新后，都会返回新的 refresh_token。
+            必须将新的 refresh_token 保存到 .env 文件，否则下次启动时会使用已撤销的 token。
+
+        Args:
+            new_refresh_token: 新的 refresh token
+        """
+        import os
+        from pathlib import Path
+
+        logger.debug("Starting to update .env file with new refresh_token")
+
+        # 查找 .env 文件
+        env_path = Path.cwd() / ".env"
+        if not env_path.exists():
+            # 如果当前目录没有，尝试项目根目录
+            possible_paths = [
+                Path(__file__).parent.parent / ".env",
+                Path.cwd().parent / ".env",
+            ]
+            for path in possible_paths:
+                if path.exists():
+                    env_path = path
+                    break
+            else:
+                logger.warning(f"Could not find .env file to update refresh_token")
+                return
+
+        logger.debug(f"Found .env file at: {env_path}")
+
+        try:
+            # 读取现有内容
+            logger.debug("Reading .env file...")
+            with open(env_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            logger.debug(f"Read {len(lines)} lines from .env")
+
+            # 更新 FEISHU_USER_REFRESH_TOKEN
+            updated = False
+            for i, line in enumerate(lines):
+                if line.startswith('FEISHU_USER_REFRESH_TOKEN='):
+                    lines[i] = f'FEISHU_USER_REFRESH_TOKEN={new_refresh_token}\n'
+                    updated = True
+                    logger.debug(f"Updated line {i}")
+                    break
+
+            # 如果没有找到，添加到末尾
+            if not updated:
+                lines.append(f'\nFEISHU_USER_REFRESH_TOKEN={new_refresh_token}\n')
+                logger.debug("Appended new FEISHU_USER_REFRESH_TOKEN line")
+
+            # 写回文件
+            logger.debug("Writing updated content back to .env...")
+            with open(env_path, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+
+            logger.info(f"Updated FEISHU_USER_REFRESH_TOKEN in {env_path}")
+            logger.debug("_update_env_refresh_token completed successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to update .env file: {e}")
+            # 不抛出异常，避免影响主流程
+            logger.debug("Continuing despite .env update failure")
 
     def get_user_info(self) -> Dict[str, Any]:
         """
@@ -622,43 +715,52 @@ class FeishuApiClient:
         Note:
             根据 https://open.feishu.cn/document/common-capabilities/sso/api/obtain-oauth-code
             - 授权端点使用 accounts.feishu.cn 域名，参数名使用 client_id（不是 app_id）
-            - state 必须是纯数字字符串（参考官方 Go 示例：fmt.Sprintf("%d", rand.Int())）
+            - state 参数采用 Base64 编码的 JSON（与 Feishu-MCP 保持一致）
+            - 编码内容包含 app_id, timestamp, redirect_uri，用于回调验证
 
         Example:
             >>> url = client.generate_oauth_url()
             >>> print(f"请访问: {url}")
         """
-        import secrets
-        import random
+        import base64
+        import json
+        import time
 
         # 权限范围：文档和 Wiki 的只读权限 + offline_access（用于获取 refresh_token）
         # 参考: https://open.feishu.cn/document/common-capabilities/sso/api/obtain-oauth-code
         # 注意：wiki:wiki 不是有效权限，只使用 wiki:wiki:readonly
         scope = "docx:document docx:document:readonly wiki:wiki:readonly offline_access"
 
-        # 生成符合飞书要求的 state：**纯数字字符串**（参考官方 Go 代码）
-        # 官方示例: state := fmt.Sprintf("%d", rand.Int())
+        # 生成 state 参数（采用 Feishu-MCP 的 Base64 编码方案）
+        # 将必要信息编码到 state 中，便于回调时验证和使用
         if not state:
-            # 使用纯数字字符串（与官方 Go 代码一致）
-            state = str(random.randint(1, 9007199254740991))  # JavaScript MAX_SAFE_INTEGER
+            import base64
+            import json
+            import time
+
+            state_data = {
+                "app_id": self.app_id,
+                "timestamp": int(time.time()),
+                "redirect_uri": redirect_uri,
+            }
+            # Base64 编码（与 Feishu-MCP 一致）
+            # 使用 separators 确保紧凑格式（无空格），与 TypeScript 的 JSON.stringify() 一致
+            state_json = json.dumps(state_data, separators=(',', ':'))
+            state = base64.b64encode(state_json.encode()).decode()
 
         # 参数名称：使用 client_id（不是 app_id）
-        # 必须使用 URLEncode 对所有参数值进行编码
+        # URL 编码规则（参考 Feishu-MCP）：
+        # - redirect_uri 和 scope 需要 URL 编码
+        # - state 不需要 URL 编码（Base64 字符串可以直接使用）
         from urllib.parse import quote
-
-        # 构建参数字典（所有值都需要 URL 编码）
-        params = {
-            "client_id": self.app_id,
-            "redirect_uri": redirect_uri,
-            "scope": scope,
-            "response_type": "code",  # 必须是 "code"
-            "state": state,
-        }
 
         # 使用 USER_AUTH_BASE_URL（accounts.feishu.cn）而不是 BASE_URL（open.feishu.cn）
         url = f"{self.USER_AUTH_BASE_URL}{self.USER_AUTH_ENDPOINT}?"
-        # 正确的 URL 编码：所有参数值都需要编码（特别是 scope 中的空格）
-        url += "&".join([f"{k}={quote(str(v), safe='')}" for k, v in params.items()])
+        url += f"client_id={self.app_id}"
+        url += f"&redirect_uri={quote(redirect_uri, safe='')}"
+        url += f"&scope={quote(scope, safe='')}"
+        url += f"&response_type=code"
+        url += f"&state={state}"  # state 不进行 URL 编码（与 Feishu-MCP 一致）
 
         return url
 

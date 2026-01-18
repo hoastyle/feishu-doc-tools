@@ -1,0 +1,22 @@
+{
+  "app_info": {
+    "app_id": "cli_a9e09cc76d345bb4",
+    "app_type": "[填写: 自建应用/商店应用]",
+    "app_status": "[填写: 已启用/停用/未发布]",
+    "app_available": "[填写: 仅本企业/所有企业/指定企业]"
+  },
+  "redirect_uri": {
+    "configured": "http://localhost:3333/callback",
+    "verified": "[ ] 已确认配置正确"
+  },
+  "user_info": {
+    "test_user": "[填写: 测试用户飞书账号]",
+    "has_permission": "[ ] 用户有应用使用权限",
+    "user_status": "[填写: 正常/停用/已删除]"
+  },
+  "test_results": {
+    "test_a_minimal": "[ ] 成功 / [ ] 失败",
+    "test_b_minimal_scope": "[ ] 成功 / [ ] 失败",
+    "test_c_offline_access": "[ ] 成功 / [ ] 失败"
+  }
+}
