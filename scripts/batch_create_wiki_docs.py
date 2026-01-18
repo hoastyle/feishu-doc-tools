@@ -273,18 +273,38 @@ Examples:
         except Exception as e:
             parser.error(str(e))
     elif args.personal:
-        # Auto-detect personal space
+        # Auto-detect "个人知识库" space_id
         client = FeishuApiClient.from_env() if not args.app_id else FeishuApiClient(args.app_id, args.app_secret)
+        logger.info("Auto-detecting '个人知识库' space...")
         try:
-            root_info = client.get_root_folder_info()
-            my_library = root_info.get("my_library", {})
-            if my_library:
-                space_id = my_library.get("space_id")
-                logger.info(f"Using personal knowledge base: space_id={space_id}")
-            else:
+            # Get all wiki spaces and find the one named "个人知识库"
+            all_spaces = client.get_all_wiki_spaces()
+            personal_space = None
+            for space in all_spaces:
+                if space.get("name") == "个人知识库":
+                    personal_space = space
+                    break
+
+            if not personal_space:
+                # Fallback: try to find spaces with "个人" or "知识库" in name
+                for space in all_spaces:
+                    name = space.get("name", "")
+                    if "个人" in name or "知识库" in name or "Personal" in name or "Library" in name:
+                        logger.warning(f"  ⚠️  Exact match not found, using: {name}")
+                        personal_space = space
+                        break
+
+            if not personal_space:
+                logger.error("Could not find '个人知识库' space")
+                logger.info("Available spaces:")
+                for space in all_spaces:
+                    logger.info(f"  - {space.get('name')} (space_id: {space.get('space_id')})")
                 parser.error("Personal knowledge base not found. Please use --space-id instead.")
+
+            space_id = personal_space.get("space_id")
+            logger.info(f"  ✓ Detected '个人知识库': {personal_space.get('name')} (space_id: {space_id})")
         except Exception as e:
-            parser.error(f"Failed to detect personal space: {e}")
+            parser.error(f"Failed to auto-detect '个人知识库': {e}")
 
     if not space_id:
         parser.error("Must specify --space-id, --space-name, or --personal. Use --list-spaces to see available spaces.")
