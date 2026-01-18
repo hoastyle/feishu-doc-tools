@@ -2,15 +2,16 @@
 """
 List Wiki Knowledge Base Hierarchy Structure
 
-This script displays the tree structure of a Wiki space without downloading any content.
-Similar to the 'tree' command but for Feishu Wiki.
+This script displays tree structure of a Wiki space without downloading any content.
+Similar to 'tree' command but for Feishu Wiki.
 """
 
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,11 +23,14 @@ logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClient,
-               parent_token: str = None, prefix: str = "", is_last: bool = True,
-               current_depth: int = 0, max_depth: int = -1, debug: bool = False):
+def print_tree_with_count(
+    nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClient,
+    parent_token: str = None, prefix: str = "", is_last: bool = True,
+    current_depth: int = 0, max_depth: int = -1, debug: bool = False
+) -> int:
     """
-    Recursively print Wiki node tree structure.
+    Recursively print Wiki node tree structure AND count nodes in a single pass.
+    This avoids duplicate API calls for fetching children.
 
     Args:
         nodes: List of nodes to display
@@ -38,13 +42,18 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
         current_depth: Current recursion depth
         max_depth: Maximum depth to display (-1 for unlimited)
         debug: Print debug information
+
+    Returns:
+        Total count of nodes in this subtree (including current nodes)
     """
     if not nodes:
-        return
+        return 0
 
     # Check depth limit
     if max_depth >= 0 and current_depth >= max_depth:
-        return
+        return len(nodes)
+
+    count = len(nodes)
 
     for i, node in enumerate(nodes):
         is_last_node = (i == len(nodes) - 1)
@@ -67,8 +76,7 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
         if debug:
             print(f"[DEBUG] {node_title}: type={node_type}, has_children={raw_has_children}, obj_token={obj_token}")
 
-        # OPTIMIZATION: For 'origin' type, try to fetch children first
-        # Then use the actual result to determine icon and whether to recurse
+        # Fetch children once (OPTIMIZATION: same logic as before, but reused for counting)
         children = None
         if node_type == 'origin':
             try:
@@ -85,7 +93,7 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
 
         # Determine icon based on whether it actually has children
         has_children = children is not None and len(children) > 0
-        
+
         if debug:
             print(f"[DEBUG] {node_title}: actual_children={len(children) if children else 0}, is_doc={not has_children}")
 
@@ -103,7 +111,7 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
         # Print current node
         print(f"{prefix}{connector}{icon} {node_title}")
 
-        # Recursively display children if we have any
+        # Recursively display children and count them if we have any
         if has_children and children:
             # Build prefix for children
             if prefix == "":
@@ -111,7 +119,7 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
             else:
                 child_prefix = prefix + ("    " if is_last_node else "│   ")
 
-            print_tree(
+            child_count = print_tree_with_count(
                 children,
                 space_id,
                 client,
@@ -122,6 +130,9 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
                 max_depth,
                 debug
             )
+            count += child_count
+
+    return count
 
 
 def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
@@ -140,7 +151,7 @@ def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
     """
     # Resolve space ID using shared library
     from lib.wiki_operations import resolve_space_id, SpaceNotFoundError
-    
+
     try:
         space_id = resolve_space_id(
             client=client,
@@ -164,7 +175,9 @@ def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
         print(f"📚 Wiki Space: {space_name or space_id}")
 
     # Get root nodes
+    start_time = time.time()
     nodes = client.get_wiki_node_list(space_id, parent_token)
+    fetch_time = time.time() - start_time
 
     if debug:
         print(f"[DEBUG] Got {len(nodes)} root nodes")
@@ -178,47 +191,19 @@ def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
     # Print tree
     print(f"\n🌳 Tree Structure:")
     print("=" * 60)
-    print_tree(nodes, space_id, client, parent_token, "", True, 0, max_depth, debug)
+    tree_start = time.time()
+    total = print_tree_with_count(nodes, space_id, client, parent_token, "", True, 0, max_depth, debug)
+    tree_time = time.time() - tree_start
     print("=" * 60)
 
     # Statistics
-    total = count_nodes(nodes, space_id, client, max_depth)
     print(f"\n📊 Total Nodes (shown): {total}")
+    print(f"⏱️  API Call Time: {fetch_time:.2f}s")
+    print(f"⏱️  Tree Build Time: {tree_time:.2f}s")
+    print(f"⏱️  Total Time: {(time.time() - start_time):.2f}s")
 
     if max_depth >= 0:
         print(f"📏 Depth Limit: {max_depth} level(s)")
-def count_nodes(nodes: List[Dict[str, Any]], space_id: str,
-                client: FeishuApiClient, max_depth: int = -1,
-                current_depth: int = 0) -> int:
-    """Count total nodes recursively."""
-    # Check depth limit
-    if max_depth >= 0 and current_depth >= max_depth:
-        return 0
-
-    count = len(nodes)
-    for node in nodes:
-        node_type = node.get('node_type')
-        node_token = node.get('node_token')
-        raw_has_children = node.get('has_children')
-
-        # Same logic: try to fetch children first, then count based on actual result
-        children = None
-        if node_type == 'origin':
-            try:
-                children = client.get_wiki_node_list(space_id, node_token)
-            except:
-                pass
-        elif raw_has_children:
-            try:
-                children = client.get_wiki_node_list(space_id, node_token)
-            except:
-                pass
-
-        # Only recurse if we actually got children
-        if children and len(children) > 0:
-            count += count_nodes(children, space_id, client, max_depth, current_depth + 1)
-    
-    return count
 
 
 def main():
