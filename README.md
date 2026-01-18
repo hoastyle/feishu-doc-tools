@@ -10,7 +10,9 @@
 
 ### 🚀 批量操作
 - ✅ **批量创建文档** - 一键上传整个文件夹到飞书
-- ✅ **批量 Wiki 迁移** - 批量上传到 Wiki 知识库（新功能）
+- ✅ **批量 Wiki 迁移** - 批量上传到 Wiki 知识库
+- ✅ **文档下载/导出** ⭐ - 下载飞书文档为 Markdown（新功能）
+- ✅ **批量下载 Wiki** ⭐ - 批量下载知识库文档（新功能）
 - ✅ **表格转 Bitable** - Markdown 表格自动转为多维表格
 - ✅ **并行上传** - 大文档性能提升 5-10x
 
@@ -35,6 +37,8 @@
 |---------|--------------|------------|------|
 | **批量创建文档** | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
 | **批量上传文件夹** | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
+| **文档下载/导出** ⭐ | **✅ 原生支持** | **⚠️ 需手动** | **feishu-doc-tools** |
+| **批量下载 Wiki** ⭐ | **✅ 原生支持** | **⚠️ 需循环** | **feishu-doc-tools** |
 | **表格转 Bitable** | ✅ 专门工具 | ❌ 不支持 | feishu-doc-tools |
 | **大文档上传** | ✅ 并行优化 (5-10x) | ⚠️ 较慢 | feishu-doc-tools |
 | **AI 辅助编辑** | ❌ 不支持 | ✅ 核心功能 | Feishu-MCP |
@@ -132,6 +136,35 @@ uv run python scripts/md_table_to_bitable.py data.md --auto-types
 uv run python scripts/md_to_feishu.py 大文档.md --parallel
 ```
 
+#### 场景 7：下载单个文档为 Markdown ⭐
+
+```bash
+# 按名称和路径下载（推荐）
+uv run python scripts/download_doc.py \
+  --space-name "产品文档" \
+  --wiki-path "/API/REST API" \
+  -o api.md
+
+# 按文档 ID 下载
+uv run python scripts/download_doc.py doxcnxxxxx output.md
+```
+
+#### 场景 8：批量下载 Wiki 知识库 ⭐
+
+```bash
+# 下载整个知识库
+uv run python scripts/download_wiki.py --space-name "产品文档" ./backup
+
+# 下载指定路径（部分下载）
+uv run python scripts/download_wiki.py \
+  --space-name "产品文档" \
+  --start-path "/API/参考" \
+  ./api_docs
+
+# 下载个人知识库
+uv run python scripts/download_wiki.py --personal ./my_backup
+```
+
 ---
 
 ## 📁 CLI 工具完整清单
@@ -141,7 +174,9 @@ uv run python scripts/md_to_feishu.py 大文档.md --parallel
 | `create_feishu_doc.py` | 创建单个云文档 | 快速创建 |
 | `batch_create_docs.py` | 批量创建云文档 | 文件夹迁移 |
 | `create_wiki_doc.py` | 创建单个 Wiki 文档 | 知识库维护 |
-| **`batch_create_wiki_docs.py`** | **批量创建 Wiki 文档** | **知识库迁移（新）** |
+| `batch_create_wiki_docs.py` | 批量创建 Wiki 文档 | 知识库迁移 |
+| **`download_doc.py`** ⭐ | **下载单个文档** | **文档备份/导出（新）** |
+| **`download_wiki.py`** ⭐ | **批量下载 Wiki** | **知识库备份（新）** |
 | `md_table_to_bitable.py` | 表格转 Bitable | 数据管理 |
 | `md_to_feishu.py` | 上传到现有文档 | 内容更新 |
 | `get_root_info.py` | 获取根信息 | 环境配置 |

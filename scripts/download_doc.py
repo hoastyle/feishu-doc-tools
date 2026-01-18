@@ -20,9 +20,105 @@ from scripts.feishu_to_md import convert_feishu_to_markdown
 logger = logging.getLogger(__name__)
 
 
+def resolve_document_id(
+    client: FeishuApiClient,
+    space_name: str = None,
+    wiki_path: str = None,
+    doc_name: str = None,
+) -> tuple[str, str]:
+    """
+    Resolve document ID from space name and path/name.
+
+    Args:
+        client: Feishu API client
+        space_name: Wiki space name
+        wiki_path: Full path to document (e.g., "/API/Reference/REST API")
+        doc_name: Document name to search for (alternative to wiki_path)
+
+    Returns:
+        Tuple of (document_id, document_title)
+
+    Raises:
+        ValueError: If document cannot be found
+    """
+    # Find space ID
+    logger.info(f"Looking for wiki space: {space_name}")
+    space_id = client.find_wiki_space_by_name(space_name)
+    if not space_id:
+        raise ValueError(f"Wiki space not found: {space_name}")
+    logger.info(f"  Found space ID: {space_id}")
+
+    # Resolve path or search by name
+    if wiki_path:
+        # Use path to find document
+        logger.info(f"Resolving path: {wiki_path}")
+        node_token = client.resolve_wiki_path(space_id, wiki_path)
+
+        if not node_token:
+            raise ValueError(f"Path not found: {wiki_path}")
+
+        # Get node details to extract obj_token
+        # We need to get the parent path and node name
+        path_parts = [p for p in wiki_path.strip("/").split("/") if p]
+        node_name = path_parts[-1] if path_parts else ""
+        parent_path = "/".join(path_parts[:-1]) if len(path_parts) > 1 else None
+
+        # Get parent token if needed
+        parent_token = None
+        if parent_path:
+            parent_token = client.resolve_wiki_path(space_id, parent_path)
+
+        # Get node list to find obj_token
+        nodes = client.get_wiki_node_list(space_id, parent_token)
+        matching_nodes = [n for n in nodes if n.get("node_token") == node_token]
+
+        if not matching_nodes:
+            raise ValueError(f"Node not found: {wiki_path}")
+
+        node = matching_nodes[0]
+
+    elif doc_name:
+        # Search by name at root level
+        logger.info(f"Searching for document: {doc_name}")
+
+        # Get all root nodes
+        nodes = client.get_wiki_node_list(space_id, None)
+        matching_nodes = [n for n in nodes if n.get("title") == doc_name]
+
+        if not matching_nodes:
+            raise ValueError(
+                f"Document not found: {doc_name}\n"
+                f"Try using --wiki-path to specify the full path"
+            )
+
+        if len(matching_nodes) > 1:
+            logger.warning(f"Found {len(matching_nodes)} documents with name '{doc_name}', using first one")
+
+        node = matching_nodes[0]
+
+    else:
+        raise ValueError("Must provide either --wiki-path or --doc-name")
+
+    # Extract document ID and title
+    obj_token = node.get("obj_token")
+    title = node.get("title", "untitled")
+    node_type = node.get("node_type", "")
+
+    if not obj_token:
+        raise ValueError(f"Node '{title}' is not a document (type: {node_type})")
+
+    logger.info(f"  Found document: {title}")
+    logger.info(f"  Document ID: {obj_token}")
+
+    return obj_token, title
+
+
 def download_document(
-    doc_id: str,
-    output_path: str,
+    doc_id: str = None,
+    output_path: str = None,
+    space_name: str = None,
+    wiki_path: str = None,
+    doc_name: str = None,
     app_id: str = None,
     app_secret: str = None,
 ) -> bool:
@@ -30,8 +126,11 @@ def download_document(
     Download a Feishu document and save as Markdown.
 
     Args:
-        doc_id: Document ID
+        doc_id: Document ID (direct method)
         output_path: Output file path
+        space_name: Wiki space name (used with wiki_path or doc_name)
+        wiki_path: Full path to document (alternative to doc_id)
+        doc_name: Document name to search (alternative to doc_id)
         app_id: Optional Feishu app ID
         app_secret: Optional Feishu app secret
 
@@ -44,6 +143,16 @@ def download_document(
             client = FeishuApiClient(app_id, app_secret)
         else:
             client = FeishuApiClient.from_env()
+
+        # Resolve document ID if using name-based method
+        doc_title = None
+        if space_name:
+            doc_id, doc_title = resolve_document_id(
+                client, space_name, wiki_path, doc_name
+            )
+
+        if not doc_id:
+            raise ValueError("No document ID provided or resolved")
 
         logger.info(f"Downloading document: {doc_id}")
 
@@ -58,6 +167,17 @@ def download_document(
 
         # Convert to Markdown
         markdown = convert_feishu_to_markdown(blocks)
+
+        # Determine output path
+        if not output_path:
+            # Generate filename from title if available
+            if doc_title:
+                # Sanitize title for filename
+                safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in doc_title)
+                output_path = f"{safe_title}.md"
+            else:
+                output_path = f"{doc_id}.md"
+            logger.info(f"No output path specified, using: {output_path}")
 
         # Save to file
         output_file = Path(output_path)
@@ -83,26 +203,64 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download document to output.md
+  # Method 1: Direct document ID (original method)
   uv run python scripts/download_doc.py doxcnxxxxx output.md
 
-  # Download with custom app credentials
-  uv run python scripts/download_doc.py doxcnxxxxx output.md \\
-    --app-id cli_xxxxx --app-secret xxxxx
+  # Method 2: By space name and full path (recommended)
+  uv run python scripts/download_doc.py \\
+    --space-name "产品文档" \\
+    --wiki-path "/API/参考/REST API" \\
+    -o rest_api.md
+
+  # Method 3: By space name and document name (convenient)
+  uv run python scripts/download_doc.py \\
+    --space-name "产品文档" \\
+    --doc-name "REST API" \\
+    -o rest_api.md
+
+  # Auto-generate filename from document title
+  uv run python scripts/download_doc.py \\
+    --space-name "产品文档" \\
+    --wiki-path "/API/参考/REST API"
 
   # Enable verbose logging
   uv run python scripts/download_doc.py doxcnxxxxx output.md -v
         """,
     )
 
+    # Positional arguments (optional when using name-based method)
     parser.add_argument(
         "doc_id",
-        help="Document ID (e.g., doxcnxxxxx)",
+        nargs="?",
+        help="Document ID (e.g., doxcnxxxxx) - required for Method 1",
     )
     parser.add_argument(
         "output",
-        help="Output Markdown file path",
+        nargs="?",
+        help="Output Markdown file path - required for Method 1, optional for Method 2/3",
     )
+
+    # Name-based method arguments
+    parser.add_argument(
+        "--space-name",
+        help="Wiki space name (required for Method 2 and 3)",
+    )
+    parser.add_argument(
+        "--wiki-path",
+        help="Full path to document (e.g., '/API/Reference/REST API') - for Method 2",
+    )
+    parser.add_argument(
+        "--doc-name",
+        help="Document name to search for - for Method 3",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-file",
+        dest="output_file",
+        help="Output file path (alternative to positional output argument)",
+    )
+
+    # Authentication arguments
     parser.add_argument(
         "--app-id",
         help="Feishu app ID (or set FEISHU_APP_ID env var)",
@@ -126,10 +284,50 @@ Examples:
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
 
+    # Validate arguments and determine method
+    using_method_1 = bool(args.doc_id)
+    using_method_2_3 = bool(args.space_name)
+
+    if not using_method_1 and not using_method_2_3:
+        parser.error(
+            "Must specify either:\n"
+            "  Method 1: <doc_id> <output>\n"
+            "  Method 2: --space-name + --wiki-path [-o output]\n"
+            "  Method 3: --space-name + --doc-name [-o output]"
+        )
+
+    if using_method_1 and using_method_2_3:
+        parser.error(
+            "Cannot use both Method 1 (doc_id) and Method 2/3 (--space-name) together"
+        )
+
+    # Validate Method 1
+    if using_method_1:
+        if not args.output and not args.output_file:
+            parser.error("Method 1 requires output file: <doc_id> <output>")
+
+    # Validate Method 2/3
+    if using_method_2_3:
+        if not args.wiki_path and not args.doc_name:
+            parser.error(
+                "Must specify either --wiki-path or --doc-name with --space-name"
+            )
+
+        if args.wiki_path and args.doc_name:
+            parser.error(
+                "Cannot use both --wiki-path and --doc-name together"
+            )
+
+    # Determine output path
+    output_path = args.output_file or args.output
+
     # Download document
     success = download_document(
         doc_id=args.doc_id,
-        output_path=args.output,
+        output_path=output_path,
+        space_name=args.space_name,
+        wiki_path=args.wiki_path,
+        doc_name=args.doc_name,
         app_id=args.app_id,
         app_secret=args.app_secret,
     )

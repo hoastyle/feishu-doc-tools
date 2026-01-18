@@ -14,6 +14,8 @@
 | 上传单个文档到 Wiki | `create_wiki_doc.py` | [Wiki 操作指南](#wiki-知识库操作) |
 | 批量上传整个文件夹 | `batch_create_docs.py` | [批量操作](#批量操作) |
 | 批量上传到 Wiki 空间 | `batch_create_wiki_docs.py` | [Wiki 操作指南](#wiki-知识库操作) |
+| **下载单个文档** ⭐ | `download_doc.py` | [下载指南](DOWNLOAD_GUIDE.md) |
+| **批量下载 Wiki** ⭐ | `download_wiki.py` | [下载指南](DOWNLOAD_GUIDE.md) |
 | Markdown 表格转多维表格 | `md_table_to_bitable.py` | [Bitable 操作](#bitable-多维表格) |
 | 大文档快速上传 | `--parallel` 标志 | [性能优化](#性能优化) |
 
@@ -51,6 +53,7 @@ uv run python scripts/batch_create_docs.py ./docs
 | 文档 | 内容 | 功能 |
 |------|------|------|
 | [BATCH_OPERATIONS.md](BATCH_OPERATIONS.md) | 批量操作完整指南 | 文件夹批量上传 |
+| [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) ⭐ | **下载功能完整指南** | **单文档/批量下载** |
 | [BITABLE_OPERATIONS.md](BITABLE_OPERATIONS.md) | Bitable 操作指南 | 表格转多维表格 |
 | [PERFORMANCE_OPTIMIZATION.md](PERFORMANCE_OPTIMIZATION.md) | 性能优化指南 | 大文档加速上传 |
 | [DIRECT_API_MODE.md](DIRECT_API_MODE.md) | 直连 API 模式 | 不依赖 AI/MCP |
@@ -244,6 +247,8 @@ uv run python scripts/md_to_feishu.py 大文档.md --parallel
 |------|--------------|------------|---------|
 | 批量创建文档 | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
 | 批量上传文件夹 | ✅ 原生支持 | ⚠️ 需要循环 | feishu-doc-tools |
+| **文档下载/导出** ⭐ | **✅ 原生支持** | **⚠️ 需手动** | **feishu-doc-tools** |
+| **批量下载 Wiki** ⭐ | **✅ 原生支持** | **⚠️ 需循环** | **feishu-doc-tools** |
 | 表格转 Bitable | ✅ 专门工具 | ❌ 不支持 | feishu-doc-tools |
 | 大文档上传 | ✅ 并行优化 | ⚠️ 较慢 | feishu-doc-tools |
 | AI 辅助编辑 | ❌ 不支持 | ✅ 核心功能 | Feishu-MCP |
@@ -262,6 +267,8 @@ uv run python scripts/md_to_feishu.py 大文档.md --parallel
 | `batch_create_docs.py` | 批量创建云文档 | 文件夹迁移 |
 | `create_wiki_doc.py` | 创建单个 Wiki 文档 | 知识库维护 |
 | `batch_create_wiki_docs.py` | 批量创建 Wiki 文档 | 知识库迁移 |
+| **`download_doc.py`** ⭐ | **下载单个文档** | **文档备份/导出** |
+| **`download_wiki.py`** ⭐ | **批量下载 Wiki** | **知识库备份** |
 | `md_table_to_bitable.py` | 表格转 Bitable | 数据管理 |
 | `md_to_feishu.py` | 上传到现有文档 | 内容更新 |
 | `get_root_info.py` | 获取根信息 | 环境配置 |
