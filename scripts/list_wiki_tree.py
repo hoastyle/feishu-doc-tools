@@ -67,64 +67,61 @@ def print_tree(nodes: List[Dict[str, Any]], space_id: str, client: FeishuApiClie
         if debug:
             print(f"[DEBUG] {node_title}: type={node_type}, has_children={raw_has_children}, obj_token={obj_token}")
 
-        # CRITICAL FIX: For Wiki nodes, always try to fetch children for 'origin' type
-        # Wiki 'origin' nodes can have children regardless of obj_token presence
-        # (obj_token indicates the node has content, but doesn't mean no children)
+        # OPTIMIZATION: For 'origin' type, try to fetch children first
+        # Then use the actual result to determine icon and whether to recurse
+        children = None
         if node_type == 'origin':
-            # For origin type, always assume it might have children and let the API call tell us
-            has_children = True
-        elif raw_has_children is not None:
-            # For other types, trust the has_children flag
-            has_children = raw_has_children
-        else:
-            has_children = False
+            try:
+                children = client.get_wiki_node_list(space_id, node_token)
+            except Exception as e:
+                logger.error(f"Error fetching children for {node_title}: {e}")
+                children = None
+        elif raw_has_children:
+            try:
+                children = client.get_wiki_node_list(space_id, node_token)
+            except Exception as e:
+                logger.error(f"Error fetching children for {node_title}: {e}")
+                children = None
 
-        # Icon based on type
+        # Determine icon based on whether it actually has children
+        has_children = children is not None and len(children) > 0
+        
+        if debug:
+            print(f"[DEBUG] {node_title}: actual_children={len(children) if children else 0}, is_doc={not has_children}")
+
+        # Icon based on type and whether it has children
         if node_type == 'doc' or node_type == 'docx':
             icon = '📄'
         elif node_type == 'folder':
-            icon = '📁'
+            icon = '📁' if has_children else '📄'
         elif node_type == 'origin':
-            # origin type - will check if actually has children below
-            icon = '📂'
+            # origin type: 📂 if has children, 📄 if it's a leaf document
+            icon = '📂' if has_children else '📄'
         else:
-            icon = '📂'
+            icon = '📄' if not has_children else '📂'
 
         # Print current node
         print(f"{prefix}{connector}{icon} {node_title}")
 
-        # If it has children, recursively display them
-        if has_children:
-            try:
-                children = client.get_wiki_node_list(space_id, node_token)
+        # Recursively display children if we have any
+        if has_children and children:
+            # Build prefix for children
+            if prefix == "":
+                child_prefix = "    "
+            else:
+                child_prefix = prefix + ("    " if is_last_node else "│   ")
 
-                if debug and children:
-                    print(f"[DEBUG] {node_title} has {len(children)} children")
-                elif debug:
-                    print(f"[DEBUG] {node_title} has no children (leaf node)")
-
-                # Only recurse if we actually got children
-                if children:
-                    # Build prefix for children
-                    if prefix == "":
-                        child_prefix = "    "
-                    else:
-                        child_prefix = prefix + ("    " if is_last_node else "│   ")
-
-                    print_tree(
-                        children,
-                        space_id,
-                        client,
-                        node_token,
-                        child_prefix,
-                        True,
-                        current_depth + 1,
-                        max_depth,
-                        debug
-                    )
-
-            except Exception as e:
-                logger.error(f"Error fetching children for {node_title}: {e}")
+            print_tree(
+                children,
+                space_id,
+                client,
+                node_token,
+                child_prefix,
+                True,
+                current_depth + 1,
+                max_depth,
+                debug
+            )
 
 
 def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
@@ -204,23 +201,26 @@ def count_nodes(nodes: List[Dict[str, Any]], space_id: str,
     count = len(nodes)
     for node in nodes:
         node_type = node.get('node_type')
+        node_token = node.get('node_token')
         raw_has_children = node.get('has_children')
 
-        # Same logic as print_tree: always try origin type nodes
+        # Same logic: try to fetch children first, then count based on actual result
+        children = None
         if node_type == 'origin':
-            has_children = True
-        elif raw_has_children is not None:
-            has_children = raw_has_children
-        else:
-            has_children = False
-
-        if has_children:
             try:
-                children = client.get_wiki_node_list(space_id, node.get('node_token'))
-                if children:  # Only count if actually has children
-                    count += count_nodes(children, space_id, client, max_depth, current_depth + 1)
+                children = client.get_wiki_node_list(space_id, node_token)
             except:
                 pass
+        elif raw_has_children:
+            try:
+                children = client.get_wiki_node_list(space_id, node_token)
+            except:
+                pass
+
+        # Only recurse if we actually got children
+        if children and len(children) > 0:
+            count += count_nodes(children, space_id, client, max_depth, current_depth + 1)
+    
     return count
 
 
