@@ -1,147 +1,70 @@
 {
-  "projectName": "md-to-feishu",
-  "description": "Convert Markdown files to Feishu documents without loading content into AI context",
-  "version": "0.1.0",
-  "status": "production",
-  "generatedAt": "2026-01-17T12:57:00Z",
-  
+  "project": {
+    "name": "feishu-doc-tools",
+    "version": "0.2.1",
+    "description": "飞书文档管理工具 - 批量创建/迁移、Wiki 知识库、多维表格、下载导出",
+    "status": "production-ready"
+  },
+  "generated": "2025-01-18",
   "structure": {
-    "scripts": {
-      "path": "scripts/",
-      "description": "Core conversion scripts",
-      "files": {
-        "md_to_feishu.py": {
-          "size": "558 lines",
-          "type": "CLI Tool",
-          "purpose": "Markdown to Feishu blocks conversion",
-          "mainClass": "MarkdownToFeishuConverter",
-          "entryPoint": "main()"
-        }
-      }
-    },
-    "lib": {
-      "path": "lib/",
-      "description": "Library modules",
-      "files": {
-        "feishu_md_uploader.py": {
-          "size": "247 lines",
-          "type": "API Library",
-          "purpose": "MCP tool integration and upload instruction generation",
-          "mainClass": "FeishuMdUploader",
-          "entryPoint": "upload_md_to_feishu()"
-        }
-      }
-    },
-    "tests": {
-      "path": "tests/",
-      "description": "Test suite",
-      "files": {
-        "test_md_to_feishu.py": {
-          "size": "273 lines",
-          "type": "Test Suite",
-          "testCount": 12,
-          "passed": 11,
-          "skipped": 1,
-          "coverage": "60%"
-        }
-      }
-    },
+    "scripts": [
+      {"file": "md_to_feishu.py", "description": "核心转换脚本", "lines": 558},
+      {"file": "md_to_feishu_upload.py", "description": "统一上传脚本", "lines": 250},
+      {"file": "create_feishu_doc.py", "description": "创建单个云文档", "lines": 150},
+      {"file": "batch_create_docs.py", "description": "批量创建云文档", "lines": 180},
+      {"file": "create_wiki_doc.py", "description": "创建单个 Wiki 文档", "lines": 200},
+      {"file": "batch_create_wiki_docs.py", "description": "批量创建 Wiki 文档", "lines": 220},
+      {"file": "download_doc.py", "description": "下载单个文档（新）", "lines": 320, "features": ["recursive_search", "parallel_optimization"]},
+      {"file": "download_wiki.py", "description": "批量下载 Wiki（新）", "lines": 250, "features": ["parallel_optimization", "depth_control"]},
+      {"file": "list_wiki_tree.py", "description": "预览 Wiki 结构（新）", "lines": 280, "features": ["parallel_optimization", "progress_display"]},
+      {"file": "md_table_to_bitable.py", "description": "表格转 Bitable", "lines": 300},
+      {"file": "get_root_info.py", "description": "获取根信息", "lines": 80},
+      {"file": "list_folders.py", "description": "列出文件夹", "lines": 120},
+      {"file": "test_api_connectivity.py", "description": "API 连接测试", "lines": 100}
+    ],
+    "libraries": [
+      {"file": "lib/feishu_api_client.py", "description": "直连 API 客户端", "lines": 1500, "methods": 27, "api_categories": 5},
+        "features": ["parallel_upload", "connection_pooling", "thread_safe_token"]
+      },
+      {"file": "lib/feishu_md_uploader.py", "description": "飞书转换工具", "lines": 250},
+      {"file": "lib/wiki_operations.py", "description": "Wiki 操作共享库", "lines": 280}
+    ],
     "docs": {
-      "path": "docs/",
-      "description": "Documentation",
-      "files": {
-        "USAGE.md": "Detailed usage guide",
-        "DESIGN.md": "Architecture and design documentation"
+      "user": [
+        {"file": "QUICK_START.md", "pages": 10},
+        {"file": "DOWNLOAD_GUIDE.md", "pages": 15},
+        {"file": "BATCH_OPERATIONS.md", "pages": 15},
+        {"file": "BITABLE_OPERATIONS.md", "pages": 10},
+        {"file": "API_OPERATIONS.md", "pages": 20},
+        {"file": "PERFORMANCE_OPTIMIZATION.md", "pages": 15},
+        {"file": "TROUBLESHOOTING.md", "pages": 10}
+      ],
+      "guides": [
+        {"file": "DOWNLOAD_REFERENCE.md", "pages": 20},
+        {"file": "LIST_WIKI_TREE_GUIDE.md", "pages": 15}
+      ],
+      "design": [
+        {"file": "DESIGN.md", "pages": 30},
+        {"file": "DIRECT_API_MODE.md", "pages": 10},
+        {"file": "FEISHU_MCP_INTEGRATION.md", "pages": 15},
+        {"file": "UNIFIED_WIKI_PATH_SEMANTICS.md", "pages": 10},
+        {"file": "FEATURE_GAPS.md", "pages": 10}
+      ],
+      "index": {"file": "docs/INDEX.md", "description": "文档中心"}
+    },
+    "performance": {
+      "upload": {
+        "small": {"blocks": "<50", "serial": "~3s", "parallel": "~2s", "speedup": "1.5x"},
+        "medium": {"blocks": "50-200", "serial": "~30s", "parallel": "~8s", "speedup": "3.8x"},
+        "large": {"blocks": "200-1000", "serial": "~180s", "parallel": "~30s", "speedup": "6x"},
+        "xlarge": {"blocks": "1000+", "serial": "~600s", "parallel": "~75s", "speedup": "8x"}
+      },
+      "wiki_tree": {
+        "small": {"nodes": "<10", "serial": "~1s", "parallel": "~0.3s", "speedup": "3x"},
+        "medium": {"nodes": "10-50", "serial": "~8s", "parallel": "~2s", "speedup": "4x"},
+        "large": {"nodes": "50-100", "serial": "~30s", "parallel": "~6s", "speedup": "5x"},
+        "xlarge": {"nodes": "100+", "serial": "~60s+", "parallel": "~10s", "speedup": "6x+"}
       }
     }
-  },
-  
-  "dependencies": {
-    "core": [
-      {"name": "markdown-it-py", "version": "4.0.0", "purpose": "Markdown parsing"},
-      {"name": "mdit-py-plugins", "version": "0.5.0", "purpose": "Markdown extensions"}
-    ],
-    "dev": [
-      {"name": "pytest", "version": "7.0.0+", "purpose": "Testing framework"},
-      {"name": "pytest-cov", "version": "4.0.0+", "purpose": "Coverage reporting"},
-      {"name": "black", "version": "23.0.0+", "purpose": "Code formatting"}
-    ]
-  },
-  
-  "supportedMarkdownElements": [
-    "headings (h1-h6)",
-    "paragraphs with inline styles",
-    "bold, italic, inline code, strikethrough",
-    "code blocks (50+ languages)",
-    "ordered and unordered lists",
-    "local images",
-    "blockquotes"
-  ],
-  
-  "features": {
-    "implemented": [
-      "Markdown to JSON conversion",
-      "Automatic batch processing (50 blocks per batch)",
-      "Local image handling",
-      "50+ programming language support",
-      "MCP tool integration",
-      "AI instruction generation",
-      "Comprehensive error handling"
-    ],
-    "planned": [
-      "Table support",
-      "Mathematical formulas",
-      "Download image mode",
-      "Bidirectional sync"
-    ]
-  },
-  
-  "entryPoints": [
-    {
-      "type": "CLI",
-      "path": "scripts/md_to_feishu.py",
-      "command": "uv run python scripts/md_to_feishu.py <file> <doc_id> [options]",
-      "description": "Command-line tool for conversion"
-    },
-    {
-      "type": "API",
-      "path": "lib/feishu_md_uploader.py",
-      "function": "upload_md_to_feishu(md_file: str, doc_id: str) -> str",
-      "description": "Python function for AI integration"
-    },
-    {
-      "type": "Test",
-      "path": "tests/test_md_to_feishu.py",
-      "command": "uv run pytest tests/",
-      "description": "Test suite"
-    }
-  ],
-  
-  "statistics": {
-    "totalLines": 1100,
-    "coreScriptLines": 558,
-    "libraryLines": 247,
-    "testLines": 273,
-    "docLines": 4000,
-    "gitCommits": 5,
-    "testPassRate": "91.7%"
-  },
-  
-  "testing": {
-    "framework": "pytest",
-    "coverage": "60%",
-    "testCount": 12,
-    "passedCount": 11,
-    "skippedCount": 1,
-    "command": "uv run pytest tests/"
-  },
-  
-  "quickStart": {
-    "step1": "uv sync",
-    "step2": "uv run python scripts/md_to_feishu.py example.md doc_id",
-    "step3": "uv run pytest tests/"
-  },
-  
-  "pythonVersion": "3.8.1+",
-  "license": "MIT"
+  }
 }

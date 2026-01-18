@@ -54,3 +54,4 @@ htmlcov/
 .env
 .env.local# Ctags files
 tags
+.serena
