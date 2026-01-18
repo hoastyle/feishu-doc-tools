@@ -52,6 +52,10 @@ htmlcov/
 
 # Environment variables (keep .env.example)
 # .env
-# .env.local# Ctags files
+# .env.local
+.env.bak
+.env.*
+
+# Ctags files
 tags
 .serena
