@@ -210,6 +210,59 @@ def traverse_wiki_tree(
 
     return all_nodes
 
+def traverse_wiki_tree_with_progress(
+    client: FeishuApiClient,
+    space_id: str,
+    start_token: str = None,
+    max_depth: int = -1,
+    callback: Callable[[Dict[str, Any], int], Any] = None,
+    progress_interval: int = 20,
+) -> List[Dict[str, Any]]:
+    """
+    Wiki tree traversal with progress logging.
+    
+    Same as traverse_wiki_tree but logs progress at regular intervals.
+
+    Args:
+        client: Feishu API client
+        space_id: Wiki space ID
+        start_token: Starting node token (None for root)
+        max_depth: Maximum depth to traverse (-1 for unlimited)
+        callback: Function called with (node, depth) for each node
+        progress_interval: Log progress every N nodes
+
+    Returns:
+        List of all nodes visited (including children)
+    """
+    import time
+    
+    nodes_checked = [0]  # Use list to allow modification in closure
+    start_time = time.time()
+    
+    def wrapper_callback(node: Dict[str, Any], depth: int) -> None:
+        nodes_checked[0] += 1
+        
+        # Progress logging
+        if nodes_checked[0] % progress_interval == 0:
+            elapsed = time.time() - start_time
+            logger.info(f"📊 Traversed {nodes_checked[0]} nodes... ({elapsed:.1f}s)")
+        
+        if callback:
+            callback(node, depth)
+    
+    result = traverse_wiki_tree(
+        client,
+        space_id,
+        start_token,
+        max_depth,
+        wrapper_callback
+    )
+    
+    elapsed = time.time() - start_time
+    logger.info(f"✓ Traversal complete: {nodes_checked[0]} nodes in {elapsed:.1f}s")
+    
+    return result
+
 
 def find_document_by_name_recursive(
     client: FeishuApiClient,
@@ -221,6 +274,7 @@ def find_document_by_name_recursive(
     Recursively search for documents by name.
 
     Searches the entire Wiki space for documents matching the given name.
+    Stops early when first match is found.
 
     Args:
         client: Feishu API client
@@ -231,20 +285,46 @@ def find_document_by_name_recursive(
     Returns:
         List of matching nodes (may be empty)
     """
+    import time
+    
     matching_nodes = []
-
+    nodes_checked = 0
+    start_time = time.time()
+    
     def collect_matches(node: Dict[str, Any], depth: int) -> None:
+        nonlocal matching_nodes, nodes_checked
+        
+        nodes_checked += 1
+        
+        # Progress logging every 10 nodes
+        if nodes_checked % 10 == 0:
+            elapsed = time.time() - start_time
+            logger.debug(f"Searched {nodes_checked} nodes... ({elapsed:.1f}s)")
+        
         if node.get("title") == doc_name:
+            logger.info(f"✓ Found '{doc_name}' after checking {nodes_checked} nodes")
             matching_nodes.append(node)
-
-    traverse_wiki_tree(
-        client,
-        space_id,
-        start_token,
-        max_depth=-1,  # Unlimited recursion
-        callback=collect_matches
-    )
-
+            # Early exit - raise exception to stop traversal
+            raise StopIteration()
+    
+    try:
+        traverse_wiki_tree(
+            client,
+            space_id,
+            start_token,
+            max_depth=-1,  # Unlimited recursion
+            callback=collect_matches
+        )
+    except StopIteration:
+        # Early exit - document found
+        pass
+    
+    elapsed = time.time() - start_time
+    if matching_nodes:
+        logger.info(f"Search completed in {elapsed:.1f}s (checked {nodes_checked} nodes)")
+    else:
+        logger.warning(f"Document not found after searching {nodes_checked} nodes in {elapsed:.1f}s")
+    
     return matching_nodes
 
 
