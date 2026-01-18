@@ -138,21 +138,19 @@ def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
         max_depth: Maximum depth to display (-1 for unlimited, 0 for root only, 1 for 1 level, etc.)
         debug: Print debug information
     """
-    # Resolve space ID
-    if space_id:
-        pass  # Already have ID
-    elif space_name:
-        space_id = client.find_wiki_space_by_name(space_name)
-        if not space_id:
-            print(f"❌ Wiki space not found: {space_name}")
-            return
-    else:
-        # Use personal library
-        my_library = client.get_my_library()
-        space_id = my_library.get('space_id')
-        if not space_id:
-            print("❌ Cannot determine personal knowledge base")
-            return
+    # Resolve space ID using shared library
+    from lib.wiki_operations import resolve_space_id, SpaceNotFoundError
+    
+    try:
+        space_id = resolve_space_id(
+            client=client,
+            space_name=space_name,
+            space_id=space_id,
+            personal=(space_name is None and space_id is None)
+        )
+    except SpaceNotFoundError as e:
+        print(f"❌ {e}")
+        return
 
     # Resolve starting node
     parent_token = None
@@ -189,7 +187,6 @@ def list_wiki_tree(client: FeishuApiClient, space_name: str = None,
 
     if max_depth >= 0:
         print(f"📏 Depth Limit: {max_depth} level(s)")
-
 def count_nodes(nodes: List[Dict[str, Any]], space_id: str,
                 client: FeishuApiClient, max_depth: int = -1,
                 current_depth: int = 0) -> int:

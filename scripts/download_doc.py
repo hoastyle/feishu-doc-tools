@@ -47,61 +47,36 @@ def resolve_document_id(
     Raises:
         ValueError: If document cannot be found
     """
-    # Find space ID
+    from lib.wiki_operations import resolve_space_id, resolve_path_to_node, find_document_by_name_recursive, SpaceNotFoundError, PathNotFoundError, DocumentNotFoundError
+
+    # Resolve space ID
     logger.info(f"Looking for wiki space: {space_name}")
-    space_id = client.find_wiki_space_by_name(space_name)
-    if not space_id:
-        raise DownloadError(f"Wiki space not found: {space_name}")
+    try:
+        space_id = resolve_space_id(client, space_name=space_name)
+    except SpaceNotFoundError as e:
+        raise DownloadError(str(e))
+
     logger.info(f"  Found space ID: {space_id}")
 
     # Resolve path or search by name
     if wiki_path:
-        # Use path to find document
+        # Use shared library to resolve path
         logger.info(f"Resolving path: {wiki_path}")
-        node_token = client.resolve_wiki_path(space_id, wiki_path)
-
-        if not node_token:
-            raise DownloadError(f"Path not found: {wiki_path}")
-
-        # Get node details to extract obj_token
-        # We need to get the parent path and node name
-        path_parts = [p for p in wiki_path.strip("/").split("/") if p]
-        node_name = path_parts[-1] if path_parts else ""
-        parent_path = "/".join(path_parts[:-1]) if len(path_parts) > 1 else None
-
-        # Get parent token if needed
-        parent_token = None
-        if parent_path:
-            parent_token = client.resolve_wiki_path(space_id, parent_path)
-
-        # Get node list to find obj_token
-        nodes = client.get_wiki_node_list(space_id, parent_token)
-        matching_nodes = [n for n in nodes if n.get("node_token") == node_token]
-
-        if not matching_nodes:
-            raise DownloadError(f"Node not found: {wiki_path}")
-
-        node = matching_nodes[0]
+        try:
+            node_token, node = resolve_path_to_node(client, space_id, wiki_path)
+        except PathNotFoundError as e:
+            raise DownloadError(str(e))
 
     elif doc_name:
-        # Search by name at root level
+        # Use shared library to search by name recursively
         logger.info(f"Searching for document: {doc_name}")
-
-        # Get all root nodes
-        nodes = client.get_wiki_node_list(space_id, None)
-        matching_nodes = [n for n in nodes if n.get("title") == doc_name]
-
-        if not matching_nodes:
+        try:
+            node_token, node = find_document_by_name_recursive(client, space_id, doc_name)
+        except DocumentNotFoundError as e:
             raise ValueError(
-                f"Document not found: {doc_name}\n"
+                f"{e}\n"
                 f"Try using --wiki-path to specify the full path"
             )
-
-        if len(matching_nodes) > 1:
-            logger.warning(f"Found {len(matching_nodes)} documents with name '{doc_name}', using first one")
-
-        node = matching_nodes[0]
-
     else:
         raise DownloadError("Must provide either --wiki-path or --doc-name")
 

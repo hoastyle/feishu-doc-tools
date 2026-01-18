@@ -4,6 +4,7 @@
 **Project Type**: Python Tool Suite
 **Status**: ✅ Production Ready (v0.2.1)
 **Purpose**: Markdown ↔ Feishu (Lark) bidirectional sync with batch operations
+**📚 用户文档**: [docs/INDEX.md](docs/INDEX.md)
 
 ---
 

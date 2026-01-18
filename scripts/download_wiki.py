@@ -26,27 +26,6 @@ class DownloadError(Exception):
     pass
 
 
-def sanitize_filename(name: str) -> str:
-    """
-    Sanitize filename by removing invalid characters.
-
-    Args:
-        name: Original filename
-
-    Returns:
-        Sanitized filename
-    """
-    # Replace invalid characters
-    invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
-    for char in invalid_chars:
-        name = name.replace(char, '_')
-
-    # Remove leading/trailing whitespace and dots
-    name = name.strip().strip('.')
-
-    return name or "untitled"
-
-
 def save_document_to_file(
     content: str,
     output_dir: Path,
@@ -66,6 +45,8 @@ def save_document_to_file(
     Raises:
         DownloadError: If file cannot be saved
     """
+    from lib.wiki_operations import sanitize_filename
+
     filename = sanitize_filename(title) + ".md"
     output_file = output_dir / filename
 
@@ -300,35 +281,27 @@ def download_wiki_space(
     Returns:
         Result dictionary with statistics
     """
+    from lib.wiki_operations import resolve_space_id, SpaceNotFoundError
+
     # Initialize client
     if app_id and app_secret:
         client = FeishuApiClient(app_id, app_secret)
     else:
         client = FeishuApiClient.from_env()
 
-    # Resolve space_id if space_name provided
-    if space_name:
-        logger.info(f"Looking for wiki space named: {space_name}")
-        space_id = client.find_wiki_space_by_name(space_name)
+    # Resolve space_id using shared library
+    try:
+        resolved_space_id = resolve_space_id(
+            client=client,
+            space_name=space_name,
+            space_id=space_id,
+            personal=personal
+        )
+        # Use the resolved space_id if provided space_id was None
         if not space_id:
-            raise ValueError(f"Wiki space not found: {space_name}")
-        logger.info(f"  Found space ID: {space_id}")
-
-    # Auto-detect personal space if requested
-    if personal:
-        logger.info("Auto-detecting '个人知识库' space...")
-        all_spaces = client.get_all_wiki_spaces()
-        personal_space = None
-        for space in all_spaces:
-            if space.get("name") == "个人知识库":
-                personal_space = space
-                break
-
-        if not personal_space:
-            raise ValueError("Personal knowledge base not found")
-
-        space_id = personal_space.get("space_id")
-        logger.info(f"  ✓ Detected: {personal_space.get('name')} (space_id: {space_id})")
+            space_id = resolved_space_id
+    except SpaceNotFoundError as e:
+        raise ValueError(str(e))
 
     # Resolve start_path to parent_token if provided
     if start_path:
