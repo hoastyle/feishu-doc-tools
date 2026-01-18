@@ -51,7 +51,7 @@ htmlcov/
 *.json.tmp
 
 # Environment variables (keep .env.example)
-.env
-.env.local# Ctags files
+# .env
+# .env.local# Ctags files
 tags
 .serena
