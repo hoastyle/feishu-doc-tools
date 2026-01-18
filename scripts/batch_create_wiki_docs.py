@@ -330,7 +330,7 @@ Examples:
     result = batch_create_wiki_docs(
         folder_path=args.folder,
         space_id=space_id,
-        parent_token=args.parent_token,
+        parent_token=parent_token,
         pattern=args.pattern,
         app_id=args.app_id,
         app_secret=args.app_secret,

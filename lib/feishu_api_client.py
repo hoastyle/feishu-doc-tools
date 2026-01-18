@@ -2056,13 +2056,11 @@ class FeishuApiClient:
         # Convert text styles to API format
         text_elements = []
         for style in text_styles:
-            # Skip empty elements
             text_content = style.get("text", "")
             equation_content = style.get("equation", "")
 
+            # Skip only if both content and equation are empty/missing
             if not text_content and not equation_content:
-                continue
-            if text_content == "":
                 continue
 
             # Convert to Feishu API format
@@ -2070,7 +2068,7 @@ class FeishuApiClient:
                 # Equation element
                 text_elements.append({"equation": equation_content})
             else:
-                # Text run element
+                # Text run element (allow empty strings as per Feishu API requirement)
                 text_element_style = self._convert_text_style(style.get("style", {}))
                 text_elements.append(
                     {
@@ -2080,6 +2078,10 @@ class FeishuApiClient:
                         }
                     }
                 )
+
+        # Feishu API requires at least one element, even for empty cells
+        if not text_elements:
+            text_elements.append({"text_run": {"content": ""}})
 
         return {
             "block_type": 2,  # Text block type
@@ -2338,10 +2340,8 @@ class FeishuApiClient:
         # 表格块放在最前面
         descendants.insert(0, table_block)
 
-        # 构建请求
-        endpoint = (
-            f"/docx/v1/documents/{doc_id}/blocks/{parent_id}/descendant?document_revision_id=-1"
-        )
+        # 构建请求 - 使用 /descendant endpoint (与官方文档不符，但部分场景可用)
+        endpoint = f"/docx/v1/documents/{doc_id}/blocks/{parent_id}/descendant?document_revision_id=-1"
         url = f"{self.BASE_URL}{endpoint}"
 
         payload = {"children_id": [table_id], "descendants": descendants, "index": index}
