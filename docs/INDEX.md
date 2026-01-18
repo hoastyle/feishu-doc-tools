@@ -45,6 +45,7 @@
 |------|------|------|
 | [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) | 下载功能完整指南 | ⭐ 推荐首先阅读 |
 | [DOWNLOAD_SCRIPTS_COMPARISON.md](DOWNLOAD_SCRIPTS_COMPARISON.md) | 下载脚本详细对比 | ⭐ 工具选择指南 |
+| [LIST_WIKI_TREE_GUIDE.md](LIST_WIKI_TREE_GUIDE.md) | Wiki结构预览指南 | ⭐ 层次查看工具 |
 | [DOWNLOAD_EXAMPLES.md](DOWNLOAD_EXAMPLES.md) | 下载功能使用示例 | 7个实际场景 |
 | [OPTIMIZATION_COMPLETE.md](OPTIMIZATION_COMPLETE.md) | v0.2.1优化完整报告 | 5000+字详细说明 |
 | [UNIFIED_WIKI_PATH_SEMANTICS.md](UNIFIED_WIKI_PATH_SEMANTICS.md) | 参数语义统一指南 | 从v0.2.0迁移 |
@@ -105,6 +106,11 @@
 - 完整示例: [DOWNLOAD_EXAMPLES.md](DOWNLOAD_EXAMPLES.md)
 - 详细说明: [UNIFIED_WIKI_PATH_SEMANTICS.md](UNIFIED_WIKI_PATH_SEMANTICS.md)
 
+### 我要预览Wiki结构
+- 层次结构查看: [LIST_WIKI_TREE_GUIDE.md](LIST_WIKI_TREE_GUIDE.md) ⭐ 树形预览
+- 快速查看: `list_wiki_tree.py` 工具
+- 了解目录: 使用 `-d` 参数控制深度
+
 ### 我要批量操作
 - 创建文档: [BATCH_OPERATIONS.md](BATCH_OPERATIONS.md)
 - 迁移Wiki: [BATCH_OPERATIONS.md](BATCH_OPERATIONS.md) 中的Wiki迁移部分
@@ -132,14 +138,14 @@
 | 分类 | 数量 | 总页数 |
 |------|------|--------|
 | 快速入门 | 1 | ~100 |
-| 下载功能 | 6 | ~1800 |
+| 下载功能 | 7 | ~2000 |
 | 上传功能 | 3 | ~1200 |
 | 性能优化 | 1 | ~300 |
 | 故障排除 | 2 | ~500 |
 | 设计架构 | 3 | ~800 |
 | 实现迁移 | 3 | ~600 |
 | 其他 | 5 | ~300 |
-| **总计** | **24** | **~5600** |
+| **总计** | **25** | **~5800** |
 
 ---
 
@@ -149,7 +155,8 @@
 - 完全重构下载功能
 - 参数语义统一
 - 添加递归搜索和深度控制
-- 新增6个文档
+- 新增 Wiki 层次结构预览工具（list_wiki_tree.py）
+- 新增7个文档
 
 ### v0.2.0 (2026-01-17)
 - Phase 1下载功能
@@ -188,6 +195,7 @@
 |------|---------|
 | 不知道从哪开始 | [QUICK_START.md](QUICK_START.md) |
 | 下载不工作 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) |
+| 需要预览Wiki结构 | [LIST_WIKI_TREE_GUIDE.md](LIST_WIKI_TREE_GUIDE.md) |
 | 参数不清楚 | [UNIFIED_WIKI_PATH_SEMANTICS.md](UNIFIED_WIKI_PATH_SEMANTICS.md) |
 | 需要代码示例 | [DOWNLOAD_EXAMPLES.md](DOWNLOAD_EXAMPLES.md) |
 | 想理解整个系统 | [DESIGN.md](DESIGN.md) |

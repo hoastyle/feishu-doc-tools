@@ -1,13 +1,14 @@
 # 下载功能完整指南
 
 **更新日期**: 2026-01-18
-**版本**: v0.2.0 (用户体验改进版)
+**版本**: v0.2.1 (新增 Wiki 结构预览)
 
 ---
 
 ## 📋 目录
 
 - [概述](#概述)
+- [Wiki 结构预览 (list_wiki_tree.py)] ⭐ [新增](#wiki-结构预览-list_wiki_treepy-新增)
 - [单文档下载 (download_doc.py)](#单文档下载-download_docpy)
 - [批量下载 (download_wiki.py)](#批量下载-download_wikipy)
 - [常见场景](#常见场景)
@@ -18,20 +19,88 @@
 
 ## 概述
 
-feishu-doc-tools 提供了两个强大的下载工具：
+feishu-doc-tools 提供了三个强大的 Wiki 工具：
 
-1. **download_doc.py** - 下载单个文档
-2. **download_wiki.py** - 批量下载 Wiki 空间
+1. **list_wiki_tree.py** ⭐ **(新增)** - 预览 Wiki 层次结构（不下载内容）
+2. **download_doc.py** - 下载单个文档
+3. **download_wiki.py** - 批量下载 Wiki 空间
 
-两个工具都支持**按名称和路径定位**，完全**对称于上传功能**的体验。
+所有工具都支持**按名称和路径定位**，完全**对称于上传功能**的体验。
 
 ### 核心优势
 
 - ✅ **对称设计**: 上传和下载使用相同的定位方式
 - ✅ **灵活定位**: 支持 ID、名称、路径三种方式
+- ✅ **结构预览**: 快速查看 Wiki 层次结构 ⭐
 - ✅ **部分下载**: 支持指定起始路径和递归控制
 - ✅ **用户友好**: 无需手动查找文档 ID
 - ✅ **错误清晰**: 提供详细的错误提示和建议
+
+---
+
+## Wiki 结构预览 (list_wiki_tree.py) ⭐ **新增**
+
+**用途**: 快速预览 Wiki 空间的层次结构，不下载任何内容
+
+### 基本用法
+
+```bash
+# 查看个人知识库
+uv run python scripts/list_wiki_tree.py --personal
+
+# 查看指定空间
+uv run python scripts/list_wiki_tree.py -s "产品文档"
+
+# 限制深度
+uv run python scripts/list_wiki_tree.py -s "产品文档" -d 2
+
+# 从指定路径开始
+uv run python scripts/list_wiki_tree.py -s "产品文档" -S "/API"
+```
+
+### 输出示例
+
+```
+📚 Wiki Space: 产品文档
+
+🌳 Tree Structure:
+============================================================
+📂 首页
+📂 项目
+    ├── 📄 项目流程
+    └── 📄 标书确认
+📂 API文档
+    ├── 📄 REST API
+    └── 📄 GraphQL API
+============================================================
+
+📊 Total Nodes (shown): 6
+```
+
+### 图标说明
+
+- 📂 **目录** - 包含子节点
+- 📄 **文档** - 叶子节点（无子节点）
+
+### 主要参数
+
+| 参数 | 短选项 | 说明 | 示例 |
+|------|--------|------|------|
+| `--space-name` | `-s` | Wiki 空间名称 | `-s "产品文档"` |
+| `--space-id` | - | Wiki 空间 ID | `--space-id 748***` |
+| `--personal` | `-P` | 个人知识库 | `-P` |
+| `--start-path` | `-S` | 起始路径 | `-S "/API"` |
+| `--depth` | `-d` | 深度控制 | `-d 2` |
+| `--debug` | - | 调试模式 | `--debug` |
+
+### 使用场景
+
+1. **下载前预览** - 确认内容结构后再下载
+2. **快速查找** - 定位文档的完整路径
+3. **结构分析** - 了解 Wiki 的组织方式
+4. **零开销** - 不占用存储空间，快速响应
+
+**完整指南**: [LIST_WIKI_TREE_GUIDE.md](LIST_WIKI_TREE_GUIDE.md)
 
 ---
 

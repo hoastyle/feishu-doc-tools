@@ -13,6 +13,7 @@
 - ✅ **批量 Wiki 迁移** - 批量上传到 Wiki 知识库
 - ✅ **文档下载/导出** ⭐ - 下载飞书文档为 Markdown（新功能）
 - ✅ **批量下载 Wiki** ⭐ - 批量下载知识库文档（新功能）
+- ✅ **Wiki 层次结构预览** ⭐ - 树形显示知识库结构（新功能）
 - ✅ **表格转 Bitable** - Markdown 表格自动转为多维表格
 - ✅ **并行上传** - 大文档性能提升 5-10x
 
@@ -165,6 +166,22 @@ uv run python scripts/download_wiki.py \
 uv run python scripts/download_wiki.py --personal ./my_backup
 ```
 
+#### 场景 9：预览 Wiki 层次结构 ⭐
+
+```bash
+# 查看完整层次结构
+uv run python scripts/list_wiki_tree.py --space-name "产品文档"
+
+# 限制深度（只看2层）
+uv run python scripts/list_wiki_tree.py --space-name "产品文档" -d 2
+
+# 从指定路径开始
+uv run python scripts/list_wiki_tree.py --space-name "产品文档" -S "/API"
+
+# 查看个人知识库
+uv run python scripts/list_wiki_tree.py --personal
+```
+
 ---
 
 ## 📁 CLI 工具完整清单
@@ -177,6 +194,7 @@ uv run python scripts/download_wiki.py --personal ./my_backup
 | `batch_create_wiki_docs.py` | 批量创建 Wiki 文档 | 知识库迁移 |
 | **`download_doc.py`** ⭐ | **下载单个文档** | **文档备份/导出（新）** |
 | **`download_wiki.py`** ⭐ | **批量下载 Wiki** | **知识库备份（新）** |
+| **`list_wiki_tree.py`** ⭐ | **预览 Wiki 结构** | **层次结构查看（新）** |
 | `md_table_to_bitable.py` | 表格转 Bitable | 数据管理 |
 | `md_to_feishu.py` | 上传到现有文档 | 内容更新 |
 | `get_root_info.py` | 获取根信息 | 环境配置 |
@@ -220,8 +238,11 @@ feishu-doc-tools/
 │   ├── create_feishu_doc.py      # 创建云文档
 │   ├── batch_create_docs.py      # 批量创建云文档
 │   ├── create_wiki_doc.py         # 创建 Wiki 文档
-│   ├── batch_create_wiki_docs.py  # 批量创建 Wiki 文档（新）
-│   ├── md_table_to_bitable.py     # 表格转 Bitable（新）
+│   ├── batch_create_wiki_docs.py  # 批量创建 Wiki 文档
+│   ├── download_doc.py            # 下载单个文档（新）
+│   ├── download_wiki.py           # 批量下载 Wiki（新）
+│   ├── list_wiki_tree.py          # 预览 Wiki 结构（新）
+│   ├── md_table_to_bitable.py     # 表格转 Bitable
 │   ├── get_root_info.py           # 获取工作区信息
 │   ├── list_folders.py            # 列出文件夹
 │   └── test_api_connectivity.py  # API 测试
@@ -236,10 +257,10 @@ feishu-doc-tools/
 ├── tests/
 │   ├── test_md_to_feishu.py       # 转换测试
 │   ├── test_feishu_api_extended.py  # API 测试
-│   ├── test_table_to_bitable.py   # Bitable 测试（新）
-│   └── test_performance.py        # 性能测试（新）
+│   ├── test_table_to_bitable.py   # Bitable 测试
+│   └── test_performance.py        # 性能测试
 ├── docs/                         # 完整文档
-│   ├── INDEX.md                   # 文档中心（新）
+│   ├── INDEX.md                   # 文档中心
 │   ├── API_OPERATIONS.md
 │   ├── BATCH_OPERATIONS.md
 │   ├── BITABLE_OPERATIONS.md
