@@ -2419,6 +2419,114 @@ class FeishuApiClient:
         logger.info(f"Extracted {len(block_ids)} image block IDs")
         return block_ids
 
+    def get_document_blocks(
+        self,
+        doc_id: str,
+        page_size: int = 500,
+        page_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get all blocks from a Feishu document.
+
+        Args:
+            doc_id: Document ID
+            page_size: Number of blocks per page (max 500)
+            page_token: Token for pagination
+
+        Returns:
+            API response with blocks data:
+            {
+                "has_more": bool,
+                "page_token": str,
+                "items": [
+                    {
+                        "block_id": str,
+                        "block_type": int,
+                        "parent_id": str,
+                        "children": List[str],
+                        "text": {...},  # For text blocks
+                        "heading1": {...},  # For heading blocks
+                        ...
+                    }
+                ]
+            }
+        """
+        token = self.get_tenant_token()
+
+        endpoint = f"/docx/v1/documents/{doc_id}/blocks"
+        url = f"{self.BASE_URL}{endpoint}"
+
+        params = {
+            "page_size": min(page_size, 500),  # Max 500 per API docs
+            "document_revision_id": -1,  # Latest version
+        }
+
+        if page_token:
+            params["page_token"] = page_token
+
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.debug(f"Fetching blocks from document: {doc_id}")
+        response = self.session.get(url, params=params, headers=headers, timeout=30)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to get document blocks: HTTP {response.status_code}\n"
+                f"Response: {response.text}"
+            )
+
+        result = response.json()
+
+        if result.get("code") != 0:
+            raise FeishuApiRequestError(
+                f"Failed to get document blocks: {result.get('msg', 'Unknown error')}\n"
+                f"Error code: {result.get('code')}"
+            )
+
+        data = result.get("data", {})
+        items = data.get("items", [])
+        has_more = data.get("has_more", False)
+
+        logger.info(f"Retrieved {len(items)} blocks, has_more: {has_more}")
+
+        return data
+
+    def get_all_document_blocks(self, doc_id: str) -> List[Dict[str, Any]]:
+        """
+        Get ALL blocks from a document, handling pagination automatically.
+
+        Args:
+            doc_id: Document ID
+
+        Returns:
+            List of all blocks in the document
+        """
+        all_blocks = []
+        page_token = None
+        page_count = 0
+
+        logger.info(f"Fetching all blocks from document: {doc_id}")
+
+        while True:
+            page_count += 1
+            logger.debug(f"Fetching page {page_count}...")
+
+            data = self.get_document_blocks(doc_id, page_token=page_token)
+            items = data.get("items", [])
+            all_blocks.extend(items)
+
+            has_more = data.get("has_more", False)
+            if not has_more:
+                break
+
+            page_token = data.get("page_token")
+            if not page_token:
+                logger.warning("has_more is True but no page_token returned")
+                break
+
+        logger.info(f"Retrieved {len(all_blocks)} blocks total from {page_count} pages")
+        return all_blocks
+
 
 def upload_markdown_to_feishu(
     md_file: str,
