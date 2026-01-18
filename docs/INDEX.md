@@ -1,6 +1,6 @@
 # 📚 文档中心 - feishu-doc-tools
 
-**最后更新**: 2026-01-18
+**最后更新**: 2026-01-19
 **版本**: v0.2.1
 **🔧 技术索引**: [PROJECT_INDEX.md](../PROJECT_INDEX.md)
 
@@ -30,6 +30,9 @@
 - [DIRECT_API_MODE.md](design/DIRECT_API_MODE.md) - 直连API模式
 - [FEISHU_MCP_INTEGRATION.md](design/FEISHU_MCP_INTEGRATION.md) - MCP集成说明
 - [UNIFIED_WIKI_PATH_SEMANTICS.md](design/UNIFIED_WIKI_PATH_SEMANTICS.md) - 参数语义统一指南
+
+### 技术文档 (technical/)
+- [TENANT_TO_USER_AUTH_MIGRATION.md](technical/TENANT_TO_USER_AUTH_MIGRATION.md) - OAuth 认证迁移完整技术文档
 
 ---
 
@@ -61,8 +64,16 @@
 | [UNIFIED_WIKI_PATH_SEMANTICS.md](design/UNIFIED_WIKI_PATH_SEMANTICS.md) | 参数语义统一指南 | 从v0.2.0迁移 |
 | [FEATURE_GAPS.md](design/FEATURE_GAPS.md) | 功能限制说明 | 已知限制和workaround |
 
+### 技术文档 (technical/)
+| 文档 | 说明 | 重点 |
+|------|------|------|
+| [TENANT_TO_USER_AUTH_MIGRATION.md](technical/TENANT_TO_USER_AUTH_MIGRATION.md) | OAuth 认证迁移技术文档 | Tenant → User Auth 完整迁移过程 |
+
 ### 归档文档 (archive/)
-历史文档已归档，包括实现文档、重构文档和优化报告。
+| 文档 | 说明 |
+|------|------|
+| [CHANGELOG_v0.2.1.md](archive/CHANGELOG_v0.2.1.md) | v0.2.1 版本变更日志 |
+| [RECURSIVE_SEARCH_COMPLETE.md](archive/RECURSIVE_SEARCH_COMPLETE.md) | 递归搜索功能完成报告 |
 
 ---
 
@@ -105,6 +116,7 @@
 - 技术参考: [DOWNLOAD_REFERENCE.md](guides/DOWNLOAD_REFERENCE.md)
 - 架构设计: [DESIGN.md](design/DESIGN.md)
 - 参数语义: [UNIFIED_WIKI_PATH_SEMANTICS.md](design/UNIFIED_WIKI_PATH_SEMANTICS.md)
+- OAuth 迁移: [TENANT_TO_USER_AUTH_MIGRATION.md](technical/TENANT_TO_USER_AUTH_MIGRATION.md)
 - 技术索引: [PROJECT_INDEX.md](../PROJECT_INDEX.md)
 
 ---
@@ -116,8 +128,9 @@
 | 用户文档 | 7 | ~2180 |
 | 专题指南 | 2 | ~650 |
 | 设计文档 | 5 | ~850 |
-| 归档文档 | 10+ | ~2000 |
-| **总计** | **24+** | **~5680** |
+| 技术文档 | 1 | ~1310 |
+| 归档文档 | 3 | ~250 |
+| **总计** | **18** | **~5240** |
 
 ---
 
@@ -191,6 +204,6 @@
 
 ---
 
-**最后更新**: 2026-01-18
+**最后更新**: 2026-01-19
 **版本**: v0.2.1
 **状态**: ✅ 生产就绪
