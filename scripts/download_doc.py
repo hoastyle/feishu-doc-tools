@@ -47,7 +47,7 @@ def resolve_document_id(
     Raises:
         ValueError: If document cannot be found
     """
-    from lib.wiki_operations import resolve_space_id, resolve_path_to_node, find_document_by_name_recursive, SpaceNotFoundError, PathNotFoundError
+    from lib.wiki_operations import resolve_space_id, resolve_path_to_node, SpaceNotFoundError, PathNotFoundError
 
     # Resolve space ID
     logger.info(f"Looking for wiki space: {space_name}")
@@ -68,22 +68,25 @@ def resolve_document_id(
             raise DownloadError(str(e))
 
     elif doc_name:
-        # Use shared library to search by name recursively
-        logger.info(f"Searching for document: {doc_name}")
-        matching_nodes = find_document_by_name_recursive(client, space_id, doc_name)
-        
+        # Search by name at root level only (fast - single API call)
+        logger.info(f"Searching for document at root level: {doc_name}")
+
+        # Get all root nodes
+        nodes = client.get_wiki_node_list(space_id, None)
+        matching_nodes = [n for n in nodes if n.get("title") == doc_name]
+
         if not matching_nodes:
             raise DownloadError(
-                f"Document not found: {doc_name}\n"
-                f"Try using --wiki-path to specify the full path"
+                f"Document not found at root level: {doc_name}\n"
+                f"Hint: Use --wiki-path to specify the full path if the document is in a subfolder.\n"
+                f"      Example: --wiki-path '/Folder/Subfolder/{doc_name}'"
             )
-        
+
         if len(matching_nodes) > 1:
-            logger.warning(f"Found {len(matching_nodes)} documents with name '{doc_name}', using first one")
-        
+            logger.warning(f"Found {len(matching_nodes)} documents with name '{doc_name}' at root level, using first one")
+
         node = matching_nodes[0]
-        node_token = node.get("node_token")
-        
+
     else:
         raise DownloadError("Must provide either --wiki-path or --doc-name")
 
