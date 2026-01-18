@@ -10,7 +10,7 @@ import logging
 import sys
 import os
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 
 # Add lib directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -19,11 +19,6 @@ from lib.feishu_api_client import FeishuApiClient
 from scripts.feishu_to_md import convert_feishu_to_markdown
 
 logger = logging.getLogger(__name__)
-
-
-class DownloadError(Exception):
-    """Custom exception for download errors."""
-    pass
 
 
 def sanitize_filename(name: str) -> str:
@@ -45,104 +40,6 @@ def sanitize_filename(name: str) -> str:
     name = name.strip().strip('.')
 
     return name or "untitled"
-
-
-def save_document_to_file(
-    content: str,
-    output_dir: Path,
-    title: str,
-) -> Path:
-    """
-    Save document content to a file, handling duplicate filenames.
-
-    Args:
-        content: Markdown content to save
-        output_dir: Output directory
-        title: Document title (used as filename)
-
-    Returns:
-        Path to the saved file
-
-    Raises:
-        DownloadError: If file cannot be saved
-    """
-    filename = sanitize_filename(title) + ".md"
-    output_file = output_dir / filename
-
-    # Handle duplicate filenames
-    counter = 1
-    while output_file.exists():
-        filename = f"{sanitize_filename(title)}_{counter}.md"
-        output_file = output_dir / filename
-        counter += 1
-
-    try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(content)
-        return output_file
-    except OSError as e:
-        raise DownloadError(f"Failed to save file {output_file}: {e}") from e
-
-
-def download_single_document_node(
-    client: FeishuApiClient,
-    node: Dict[str, Any],
-    output_dir: Path,
-    depth: int = 0,
-) -> Tuple[bool, str]:
-    """
-    Download and save a single document node.
-
-    Args:
-        client: Feishu API client
-        node: Node information dictionary
-        output_dir: Output directory
-        depth: Current depth (for logging indentation)
-
-    Returns:
-        Tuple of (success: bool, status_message: str)
-        - success: True if downloaded successfully, False if failed/skipped
-        - status_message: "successful", "failed", or "skipped"
-    """
-    indent = "  " * depth
-    node_title = node.get("title", "untitled")
-    node_type = node.get("node_type", "")
-    obj_token = node.get("obj_token")
-
-    logger.info(f"{indent}Processing: {node_title} ({node_type})")
-
-    # Skip if not a document
-    if node_type not in ["doc", "docx"]:
-        logger.info(f"{indent}  Skipping non-document node type: {node_type}")
-        return False, "skipped"
-
-    # Validate obj_token
-    if not obj_token:
-        logger.warning(f"{indent}  ⚠ No obj_token found")
-        return False, "skipped"
-
-    try:
-        # Get document blocks
-        blocks = client.get_all_document_blocks(obj_token)
-
-        if not blocks:
-            logger.warning(f"{indent}  ⚠ No blocks found")
-            return False, "skipped"
-
-        # Convert to Markdown
-        markdown = convert_feishu_to_markdown(blocks)
-
-        # Save to file
-        output_file = save_document_to_file(markdown, output_dir, node_title)
-        logger.info(f"{indent}  ✓ Saved: {output_file.name}")
-        return True, "successful"
-
-    except DownloadError as e:
-        logger.error(f"{indent}  ✗ Save failed: {e}")
-        return False, "failed"
-    except Exception as e:
-        logger.error(f"{indent}  ✗ Failed: {e}")
-        return False, "failed"
 
 
 def download_wiki_node_non_recursive(
@@ -183,12 +80,54 @@ def download_wiki_node_non_recursive(
 
         for node in nodes:
             result["total"] += 1
+            node_title = node.get("title", "untitled")
+            node_type = node.get("node_type", "")
+            obj_token = node.get("obj_token")
 
-            # Use shared download function
-            success, status = download_single_document_node(
-                client, node, output_dir, depth=0
-            )
-            result[status] += 1
+            logger.info(f"Processing: {node_title} ({node_type})")
+
+            # Skip if not a document
+            if node_type not in ["doc", "docx"]:
+                logger.info(f"  Skipping non-document node type: {node_type}")
+                result["skipped"] += 1
+                continue
+
+            # Download document
+            if obj_token:
+                try:
+                    # Get document blocks
+                    blocks = client.get_all_document_blocks(obj_token)
+
+                    if blocks:
+                        # Convert to Markdown
+                        markdown = convert_feishu_to_markdown(blocks)
+
+                        # Save to file
+                        filename = sanitize_filename(node_title) + ".md"
+                        output_file = output_dir / filename
+
+                        # Handle duplicate filenames
+                        counter = 1
+                        while output_file.exists():
+                            filename = f"{sanitize_filename(node_title)}_{counter}.md"
+                            output_file = output_dir / filename
+                            counter += 1
+
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            f.write(markdown)
+
+                        logger.info(f"  ✓ Saved: {output_file.name}")
+                        result["successful"] += 1
+                    else:
+                        logger.warning(f"  ⚠ No blocks found")
+                        result["skipped"] += 1
+
+                except Exception as e:
+                    logger.error(f"  ✗ Failed: {e}")
+                    result["failed"] += 1
+            else:
+                logger.warning(f"  ⚠ No obj_token found")
+                result["skipped"] += 1
 
     except Exception as e:
         logger.error(f"Failed to process node: {e}")
@@ -202,19 +141,19 @@ def download_wiki_node(
     space_id: str,
     node_token: str,
     output_dir: Path,
-    depth: int = 0,
+    current_depth: int = 0,
     max_depth: int = -1,
 ) -> Dict[str, Any]:
     """
-    Recursively download a wiki node and its children.
+    Recursively download a wiki node and its children with depth control.
 
     Args:
         client: Feishu API client
         space_id: Wiki space ID
         node_token: Node token
         output_dir: Output directory
-        depth: Current depth (for logging)
-        max_depth: Maximum recursion depth (-1 for unlimited)
+        current_depth: Current recursion depth (for logging and control)
+        max_depth: Maximum recursion depth (-1 for unlimited, 0 for current level only)
 
     Returns:
         Result dictionary with statistics
@@ -228,37 +167,84 @@ def download_wiki_node(
 
     try:
         # Get node list (children of this node)
-        indent = "  " * depth
-        logger.info(f"{indent}Fetching children of node {node_token or 'root'}...")
+        logger.info(f"{'  ' * current_depth}Fetching children of node {node_token}...")
         nodes = client.get_wiki_node_list(space_id, node_token)
 
         if not nodes:
-            logger.info(f"{indent}No children found")
+            logger.info(f"{'  ' * current_depth}No children found")
             return result
 
-        logger.info(f"{indent}Found {len(nodes)} children")
+        logger.info(f"{'  ' * current_depth}Found {len(nodes)} children")
 
         for node in nodes:
             result["total"] += 1
+            node_title = node.get("title", "untitled")
             node_type = node.get("node_type", "")
             child_node_token = node.get("node_token")
+            obj_token = node.get("obj_token")  # Document ID
 
-            # Use shared download function
-            success, status = download_single_document_node(
-                client, node, output_dir, depth
-            )
-            result[status] += 1
+            logger.info(f"{'  ' * current_depth}Processing: {node_title} ({node_type})")
 
-            # Recursively process children if:
-            # 1. Node is not a document (e.g., folder), or
-            # 2. Node is a document that can also have children
-            # 3. Haven't reached max depth (if max_depth >= 0)
-            should_recurse = child_node_token and (node_type not in ["doc", "docx"] or not success)
-            depth_allows = (max_depth == -1) or (depth < max_depth)
+            # Skip if not a document
+            if node_type != "doc" and node_type != "docx":
+                logger.info(f"{'  ' * current_depth}  Skipping non-document node type: {node_type}")
+                result["skipped"] += 1
 
-            if should_recurse and depth_allows:
+                # Check depth before recursing
+                should_recurse = (max_depth == -1) or (current_depth < max_depth)
+
+                # Still recursively process children if within depth limit
+                if child_node_token and should_recurse:
+                    child_result = download_wiki_node(
+                        client, space_id, child_node_token, output_dir, current_depth + 1, max_depth
+                    )
+                    result["total"] += child_result["total"]
+                    result["successful"] += child_result["successful"]
+                    result["failed"] += child_result["failed"]
+                    result["skipped"] += child_result["skipped"]
+                continue
+
+            # Download document
+            if obj_token:
+                try:
+                    # Get document blocks
+                    blocks = client.get_all_document_blocks(obj_token)
+
+                    if blocks:
+                        # Convert to Markdown
+                        markdown = convert_feishu_to_markdown(blocks)
+
+                        # Save to file
+                        filename = sanitize_filename(node_title) + ".md"
+                        output_file = output_dir / filename
+
+                        # Handle duplicate filenames
+                        counter = 1
+                        while output_file.exists():
+                            filename = f"{sanitize_filename(node_title)}_{counter}.md"
+                            output_file = output_dir / filename
+                            counter += 1
+
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            f.write(markdown)
+
+                        logger.info(f"{'  ' * current_depth}  ✓ Saved: {output_file.name}")
+                        result["successful"] += 1
+                    else:
+                        logger.warning(f"{'  ' * current_depth}  ⚠ No blocks found")
+                        result["skipped"] += 1
+
+                except Exception as e:
+                    logger.error(f"{'  ' * current_depth}  ✗ Failed: {e}")
+                    result["failed"] += 1
+
+            # Check depth before recursing
+            should_recurse = (max_depth == -1) or (current_depth < max_depth)
+
+            # Recursively process children if within depth limit
+            if child_node_token and should_recurse:
                 child_result = download_wiki_node(
-                    client, space_id, child_node_token, output_dir, depth + 1, max_depth
+                    client, space_id, child_node_token, output_dir, current_depth + 1, max_depth
                 )
                 result["total"] += child_result["total"]
                 result["successful"] += child_result["successful"]
@@ -266,7 +252,7 @@ def download_wiki_node(
                 result["skipped"] += child_result["skipped"]
 
     except Exception as e:
-        logger.error(f"{'  ' * depth}Failed to process node: {e}")
+        logger.error(f"{'  ' * current_depth}Failed to process node: {e}")
         result["failed"] += 1
 
     return result
@@ -284,7 +270,7 @@ def download_wiki_space(
     app_secret: str = None,
 ) -> Dict[str, Any]:
     """
-    Download all documents from a Wiki space.
+    Download all documents from a Wiki space with depth control.
 
     Args:
         space_id: Wiki space ID
@@ -293,7 +279,7 @@ def download_wiki_space(
         start_path: Optional wiki path to start from (alternative to parent_token)
         space_name: Optional space name (alternative to space_id)
         personal: Use personal knowledge base
-        depth: Download depth control (-1=unlimited, 0=direct children, 1=children+1 level, etc.)
+        depth: Maximum recursion depth (-1 for unlimited, 0 for current level only, N for N levels deep)
         app_id: Optional Feishu app ID
         app_secret: Optional Feishu app secret
 
@@ -348,27 +334,26 @@ def download_wiki_space(
 
     # Log depth mode
     if depth == -1:
-        logger.info("Depth mode: Unlimited recursion")
+        logger.info("Depth mode: unlimited recursion")
     elif depth == 0:
-        logger.info("Depth mode: Direct children only (no recursion)")
+        logger.info("Depth mode: current level only (no recursion)")
     else:
-        logger.info(f"Depth mode: {depth} level(s) of recursion")
+        logger.info(f"Depth mode: {depth} level(s) deep")
 
     logger.info(f"Output directory: {output_path}")
 
     # Start download from root or specified parent
     start_token = parent_token or ""
 
-    if depth == 0:
-        # Non-recursive: only download direct children
-        result = download_wiki_node_non_recursive(
-            client, space_id, start_token, output_path
-        )
-    else:
-        # Recursive with depth control
-        result = download_wiki_node(
-            client, space_id, start_token, output_path, depth=0, max_depth=depth
-        )
+    # Use unified download_wiki_node function with depth control
+    result = download_wiki_node(
+        client,
+        space_id,
+        start_token,
+        output_path,
+        current_depth=0,
+        max_depth=depth
+    )
 
     return result
 
@@ -380,30 +365,36 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Download entire Wiki space - using short aliases
-  uv run python scripts/download_wiki.py -s "产品文档" ./output
+  # Download entire Wiki space (unlimited recursion)
+  uv run python scripts/download_wiki.py --space-name "产品文档" ./output
 
   # Download personal knowledge base
-  uv run python scripts/download_wiki.py -P ./output
+  uv run python scripts/download_wiki.py --personal ./output
 
-  # Download from specific path (recommended) - using short aliases
-  uv run python scripts/download_wiki.py \\
-    -s "产品文档" \\
-    -S "/API/参考" \\
-    ./output
-
-  # Download only direct children (non-recursive)
-  uv run python scripts/download_wiki.py \\
-    -s "产品文档" \\
-    -S "/API" \\
-    -r \\
-    ./output
-
-  # Using long-form options (also valid)
+  # Download from specific path (recommended)
   uv run python scripts/download_wiki.py \\
     --space-name "产品文档" \\
     --start-path "/API/参考" \\
-    --no-recursive \\
+    ./output
+
+  # Download only direct children (depth=0, no recursion)
+  uv run python scripts/download_wiki.py \\
+    --space-name "产品文档" \\
+    --start-path "/API" \\
+    --depth 0 \\
+    ./output
+
+  # Download current level + 1 level of subdirectories (depth=1)
+  uv run python scripts/download_wiki.py \\
+    --space-name "产品文档" \\
+    --start-path "/API" \\
+    --depth 1 \\
+    ./output
+
+  # Download current level + 2 levels of subdirectories (depth=2)
+  uv run python scripts/download_wiki.py \\
+    --space-name "产品文档" \\
+    --depth 2 \\
     ./output
 
   # Download from specific node (by token)
@@ -413,14 +404,7 @@ Examples:
     ./output
 
   # Enable verbose logging
-  uv run python scripts/download_wiki.py -P ./output -v
-
-Short Aliases Summary:
-  -s, --space-name: Wiki space name
-  -P, --personal: Use personal knowledge base
-  -S, --start-path: Start from specific wiki path
-  -d, --depth: Download depth control (-1=unlimited, 0=direct children only)
-  -v, --verbose: Enable verbose logging
+  uv run python scripts/download_wiki.py --personal ./output -v
         """,
     )
 
@@ -435,12 +419,10 @@ Short Aliases Summary:
         help="Wiki space ID (alternative to --space-name)",
     )
     parser.add_argument(
-        "-s",
         "--space-name",
         help="Wiki space name (recommended)",
     )
     parser.add_argument(
-        "-P",
         "--personal",
         action="store_true",
         help="Use personal knowledge base (auto-detects space_id)",
@@ -448,7 +430,6 @@ Short Aliases Summary:
 
     # Starting point arguments
     parser.add_argument(
-        "-S",
         "--start-path",
         help="Start from specific wiki path (e.g., '/API/Reference')",
     )
@@ -459,16 +440,15 @@ Short Aliases Summary:
 
     # Download behavior arguments
     parser.add_argument(
-        "-d",
         "--depth",
         type=int,
         default=-1,
         help=(
-            "Download depth control: "
-            "-1 = unlimited recursion (default), "
-            "0 = only direct children, "
-            "1 = children + 1 level, "
-            "2 = children + 2 levels, etc."
+            "Maximum recursion depth for downloading child nodes. "
+            "-1 = unlimited (default), "
+            "0 = current level only (no recursion), "
+            "1 = current + 1 level, "
+            "2 = current + 2 levels, etc."
         ),
     )
 

@@ -10,7 +10,6 @@ import logging
 import sys
 import os
 from pathlib import Path
-from typing import Tuple
 
 # Add lib directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -21,9 +20,55 @@ from scripts.feishu_to_md import convert_feishu_to_markdown
 logger = logging.getLogger(__name__)
 
 
-class DownloadError(Exception):
-    """Custom exception for download errors."""
-    pass
+def find_document_by_name_recursive(
+    client: FeishuApiClient,
+    space_id: str,
+    doc_name: str,
+    parent_token: str = None,
+    current_path: str = "",
+) -> list[dict]:
+    """
+    Recursively search for documents by name in a wiki space.
+
+    Args:
+        client: Feishu API client
+        space_id: Wiki space ID
+        doc_name: Document name to search for
+        parent_token: Parent node token (None for root)
+        current_path: Current path being searched (for display)
+
+    Returns:
+        List of matching nodes with their paths
+        Each item is a dict with keys: node, path
+    """
+    matches = []
+
+    # Get nodes at current level
+    nodes = client.get_wiki_node_list(space_id, parent_token)
+
+    for node in nodes:
+        node_title = node.get("title", "")
+        node_token = node.get("node_token")
+        has_child = node.get("has_child", False)
+
+        # Build current node path
+        node_path = f"{current_path}/{node_title}" if current_path else f"/{node_title}"
+
+        # Check if this node matches
+        if node_title == doc_name:
+            matches.append({
+                "node": node,
+                "path": node_path,
+            })
+
+        # Recursively search children if node has children
+        if has_child and node_token:
+            child_matches = find_document_by_name_recursive(
+                client, space_id, doc_name, node_token, node_path
+            )
+            matches.extend(child_matches)
+
+    return matches
 
 
 def resolve_document_id(
@@ -31,7 +76,7 @@ def resolve_document_id(
     space_name: str = None,
     wiki_path: str = None,
     doc_name: str = None,
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """
     Resolve document ID from space name and path/name.
 
@@ -51,7 +96,7 @@ def resolve_document_id(
     logger.info(f"Looking for wiki space: {space_name}")
     space_id = client.find_wiki_space_by_name(space_name)
     if not space_id:
-        raise DownloadError(f"Wiki space not found: {space_name}")
+        raise ValueError(f"Wiki space not found: {space_name}")
     logger.info(f"  Found space ID: {space_id}")
 
     # Resolve path or search by name
@@ -61,7 +106,7 @@ def resolve_document_id(
         node_token = client.resolve_wiki_path(space_id, wiki_path)
 
         if not node_token:
-            raise DownloadError(f"Path not found: {wiki_path}")
+            raise ValueError(f"Path not found: {wiki_path}")
 
         # Get node details to extract obj_token
         # We need to get the parent path and node name
@@ -79,31 +124,57 @@ def resolve_document_id(
         matching_nodes = [n for n in nodes if n.get("node_token") == node_token]
 
         if not matching_nodes:
-            raise DownloadError(f"Node not found: {wiki_path}")
+            raise ValueError(f"Node not found: {wiki_path}")
 
         node = matching_nodes[0]
 
     elif doc_name:
-        # Search by name at root level
-        logger.info(f"Searching for document: {doc_name}")
+        # Search by name recursively through entire space
+        logger.info(f"Searching for document: {doc_name} (recursive search)")
 
-        # Get all root nodes
-        nodes = client.get_wiki_node_list(space_id, None)
-        matching_nodes = [n for n in nodes if n.get("title") == doc_name]
+        # Perform recursive search
+        matches = find_document_by_name_recursive(client, space_id, doc_name)
 
-        if not matching_nodes:
+        if not matches:
             raise ValueError(
                 f"Document not found: {doc_name}\n"
-                f"Try using --wiki-path to specify the full path"
+                f"Searched entire wiki space '{space_name}'\n"
+                f"Try using --wiki-path to specify the full path if document exists"
             )
 
-        if len(matching_nodes) > 1:
-            logger.warning(f"Found {len(matching_nodes)} documents with name '{doc_name}', using first one")
+        if len(matches) == 1:
+            # Single match, use it directly
+            logger.info(f"  Found at: {matches[0]['path']}")
+            node = matches[0]["node"]
 
-        node = matching_nodes[0]
+        else:
+            # Multiple matches, let user choose
+            print(f"\nFound {len(matches)} documents named '{doc_name}':\n")
+            for idx, match in enumerate(matches, 1):
+                node_info = match["node"]
+                node_type = node_info.get("node_type", "unknown")
+                print(f"  [{idx}] {match['path']}")
+                print(f"      Type: {node_type}, Has children: {node_info.get('has_child', False)}")
+
+            print("\nPlease select a document:")
+            while True:
+                try:
+                    choice = input(f"Enter number (1-{len(matches)}): ").strip()
+                    choice_idx = int(choice)
+                    if 1 <= choice_idx <= len(matches):
+                        node = matches[choice_idx - 1]["node"]
+                        logger.info(f"  Selected: {matches[choice_idx - 1]['path']}")
+                        break
+                    else:
+                        print(f"Please enter a number between 1 and {len(matches)}")
+                except ValueError:
+                    print("Please enter a valid number")
+                except KeyboardInterrupt:
+                    print("\nCancelled by user")
+                    sys.exit(1)
 
     else:
-        raise DownloadError("Must provide either --wiki-path or --doc-name")
+        raise ValueError("Must provide either --wiki-path or --doc-name")
 
     # Extract document ID and title
     obj_token = node.get("obj_token")
@@ -111,7 +182,7 @@ def resolve_document_id(
     node_type = node.get("node_type", "")
 
     if not obj_token:
-        raise DownloadError(f"Node '{title}' is not a document (type: {node_type})")
+        raise ValueError(f"Node '{title}' is not a document (type: {node_type})")
 
     logger.info(f"  Found document: {title}")
     logger.info(f"  Document ID: {obj_token}")
@@ -158,7 +229,7 @@ def download_document(
             )
 
         if not doc_id:
-            raise DownloadError("No document ID provided or resolved")
+            raise ValueError("No document ID provided or resolved")
 
         logger.info(f"Downloading document: {doc_id}")
 
@@ -212,38 +283,27 @@ Examples:
   # Method 1: Direct document ID (original method)
   uv run python scripts/download_doc.py doxcnxxxxx output.md
 
-  # Method 2: By space name and full path (recommended) - using short aliases
-  uv run python scripts/download_doc.py \\
-    -s "产品文档" \\
-    -p "/API/参考/REST API" \\
-    -o rest_api.md
-
-  # Method 3: By space name and document name (convenient) - using short aliases
-  uv run python scripts/download_doc.py \\
-    -s "产品文档" \\
-    -n "REST API" \\
-    -o rest_api.md
-
-  # Auto-generate filename from document title
-  uv run python scripts/download_doc.py \\
-    -s "产品文档" \\
-    -p "/API/参考/REST API"
-
-  # Using long-form options (also valid)
+  # Method 2: By space name and full path (recommended)
   uv run python scripts/download_doc.py \\
     --space-name "产品文档" \\
     --wiki-path "/API/参考/REST API" \\
-    --output-file rest_api.md
+    -o rest_api.md
+
+  # Method 3: By space name and document name (searches entire space recursively)
+  uv run python scripts/download_doc.py \\
+    --space-name "产品文档" \\
+    --doc-name "REST API" \\
+    -o rest_api.md
+
+  # If multiple documents with same name exist, you'll be prompted to choose
+
+  # Auto-generate filename from document title
+  uv run python scripts/download_doc.py \\
+    --space-name "产品文档" \\
+    --wiki-path "/API/参考/REST API"
 
   # Enable verbose logging
   uv run python scripts/download_doc.py doxcnxxxxx output.md -v
-
-Short Aliases Summary:
-  -s, --space-name: Wiki space name
-  -p, --wiki-path: Full path to document
-  -n, --doc-name: Document name to search
-  -o, --output-file: Output file path
-  -v, --verbose: Enable verbose logging
         """,
     )
 
@@ -261,19 +321,16 @@ Short Aliases Summary:
 
     # Name-based method arguments
     parser.add_argument(
-        "-s",
         "--space-name",
         help="Wiki space name (required for Method 2 and 3)",
     )
     parser.add_argument(
-        "-p",
         "--wiki-path",
         help="Full path to document (e.g., '/API/Reference/REST API') - for Method 2",
     )
     parser.add_argument(
-        "-n",
         "--doc-name",
-        help="Document name to search for - for Method 3",
+        help="Document name to search for (searches entire space recursively) - for Method 3",
     )
     parser.add_argument(
         "-o",
