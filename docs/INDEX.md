@@ -44,6 +44,7 @@
 | 文档 | 说明 | 重点 |
 |------|------|------|
 | [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) | 下载功能完整指南 | ⭐ 推荐首先阅读 |
+| [DOWNLOAD_SCRIPTS_COMPARISON.md](DOWNLOAD_SCRIPTS_COMPARISON.md) | 下载脚本详细对比 | ⭐ 工具选择指南 |
 | [DOWNLOAD_EXAMPLES.md](DOWNLOAD_EXAMPLES.md) | 下载功能使用示例 | 7个实际场景 |
 | [OPTIMIZATION_COMPLETE.md](OPTIMIZATION_COMPLETE.md) | v0.2.1优化完整报告 | 5000+字详细说明 |
 | [UNIFIED_WIKI_PATH_SEMANTICS.md](UNIFIED_WIKI_PATH_SEMANTICS.md) | 参数语义统一指南 | 从v0.2.0迁移 |
@@ -99,6 +100,7 @@
 3. 或者: [BATCH_OPERATIONS.md](BATCH_OPERATIONS.md)（如果需要批量操作）
 
 ### 我要下载文档
+- 不知用哪个工具: [DOWNLOAD_SCRIPTS_COMPARISON.md](DOWNLOAD_SCRIPTS_COMPARISON.md) ⭐ 先看这个
 - 快速开始: [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) 的方法1
 - 完整示例: [DOWNLOAD_EXAMPLES.md](DOWNLOAD_EXAMPLES.md)
 - 详细说明: [UNIFIED_WIKI_PATH_SEMANTICS.md](UNIFIED_WIKI_PATH_SEMANTICS.md)
@@ -130,14 +132,14 @@
 | 分类 | 数量 | 总页数 |
 |------|------|--------|
 | 快速入门 | 1 | ~100 |
-| 下载功能 | 5 | ~1500 |
+| 下载功能 | 6 | ~1800 |
 | 上传功能 | 3 | ~1200 |
 | 性能优化 | 1 | ~300 |
 | 故障排除 | 2 | ~500 |
 | 设计架构 | 3 | ~800 |
 | 实现迁移 | 3 | ~600 |
 | 其他 | 5 | ~300 |
-| **总计** | **23** | **~5200** |
+| **总计** | **24** | **~5600** |
 
 ---
 
