@@ -441,7 +441,7 @@ uv run pytest --cov=scripts --cov=lib tests/
 
 ### 互补工具
 
-- **[Feishu-MCP](https://github.com/yourusername/Feishu-MCP)** - 飞书 MCP 服务器
+- **[Feishu-MCP](https://github.com/cso1z/Feishu-MCP/tree/main)** - 飞书 MCP 服务器
   - 用于 AI 辅助编辑、智能修改
   - 与本工具互补使用
 

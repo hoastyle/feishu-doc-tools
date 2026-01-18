@@ -3,68 +3,633 @@
     "name": "feishu-doc-tools",
     "version": "0.2.1",
     "description": "飞书文档管理工具 - 批量创建/迁移、Wiki 知识库、多维表格、下载导出",
-    "status": "production-ready"
+    "purpose": "Comprehensive Feishu (Lark) document management toolkit for batch operations, Wiki migrations, Bitable integration, and document download/export",
+    "generated": "2026-01-19",
+    "status": "production_ready",
+    "license": "MIT",
+    "requires_python": ">=3.8.1"
   },
-  "generated": "2025-01-18",
-  "structure": {
-    "scripts": [
-      {"file": "md_to_feishu.py", "description": "核心转换脚本", "lines": 558},
-      {"file": "md_to_feishu_upload.py", "description": "统一上传脚本", "lines": 250},
-      {"file": "create_feishu_doc.py", "description": "创建单个云文档", "lines": 150},
-      {"file": "batch_create_docs.py", "description": "批量创建云文档", "lines": 180},
-      {"file": "create_wiki_doc.py", "description": "创建单个 Wiki 文档", "lines": 200},
-      {"file": "batch_create_wiki_docs.py", "description": "批量创建 Wiki 文档", "lines": 220},
-      {"file": "download_doc.py", "description": "下载单个文档（新）", "lines": 320, "features": ["recursive_search", "parallel_optimization"]},
-      {"file": "download_wiki.py", "description": "批量下载 Wiki（新）", "lines": 250, "features": ["parallel_optimization", "depth_control"]},
-      {"file": "list_wiki_tree.py", "description": "预览 Wiki 结构（新）", "lines": 280, "features": ["parallel_optimization", "progress_display"]},
-      {"file": "md_table_to_bitable.py", "description": "表格转 Bitable", "lines": 300},
-      {"file": "get_root_info.py", "description": "获取根信息", "lines": 80},
-      {"file": "list_folders.py", "description": "列出文件夹", "lines": 120},
-      {"file": "test_api_connectivity.py", "description": "API 连接测试", "lines": 100}
-    ],
-    "libraries": [
-      {"file": "lib/feishu_api_client.py", "description": "直连 API 客户端", "lines": 1500, "methods": 27, "api_categories": 5},
-        "features": ["parallel_upload", "connection_pooling", "thread_safe_token"]
-      },
-      {"file": "lib/feishu_md_uploader.py", "description": "飞书转换工具", "lines": 250},
-      {"file": "lib/wiki_operations.py", "description": "Wiki 操作共享库", "lines": 280}
-    ],
-    "docs": {
-      "user": [
-        {"file": "QUICK_START.md", "pages": 10},
-        {"file": "DOWNLOAD_GUIDE.md", "pages": 15},
-        {"file": "BATCH_OPERATIONS.md", "pages": 15},
-        {"file": "BITABLE_OPERATIONS.md", "pages": 10},
-        {"file": "API_OPERATIONS.md", "pages": 20},
-        {"file": "PERFORMANCE_OPTIMIZATION.md", "pages": 15},
-        {"file": "TROUBLESHOOTING.md", "pages": 10}
-      ],
-      "guides": [
-        {"file": "DOWNLOAD_REFERENCE.md", "pages": 20},
-        {"file": "LIST_WIKI_TREE_GUIDE.md", "pages": 15}
-      ],
-      "design": [
-        {"file": "DESIGN.md", "pages": 30},
-        {"file": "DIRECT_API_MODE.md", "pages": 10},
-        {"file": "FEISHU_MCP_INTEGRATION.md", "pages": 15},
-        {"file": "UNIFIED_WIKI_PATH_SEMANTICS.md", "pages": 10},
-        {"file": "FEATURE_GAPS.md", "pages": 10}
-      ],
-      "index": {"file": "docs/INDEX.md", "description": "文档中心"}
+  "repository": {
+    "type": "git",
+    "root": "/home/howie/Software/utility/Reference/feishu-doc-tools",
+    "branch": "master",
+    "remote": null
+  },
+  "statistics": {
+    "total_files": 40,
+    "total_lines": 13508,
+    "scripts": {
+      "count": 27,
+      "lines": 6916
     },
-    "performance": {
-      "upload": {
-        "small": {"blocks": "<50", "serial": "~3s", "parallel": "~2s", "speedup": "1.5x"},
-        "medium": {"blocks": "50-200", "serial": "~30s", "parallel": "~8s", "speedup": "3.8x"},
-        "large": {"blocks": "200-1000", "serial": "~180s", "parallel": "~30s", "speedup": "6x"},
-        "xlarge": {"blocks": "1000+", "serial": "~600s", "parallel": "~75s", "speedup": "8x"}
+    "lib": {
+      "count": 4,
+      "lines": 2462
+    },
+    "tests": {
+      "count": 9,
+      "lines": 4130
+    },
+    "docs": {
+      "count": 18,
+      "pages": 5240
+    }
+  },
+  "structure": {
+    "directories": [
+      "scripts/",
+      "lib/",
+      "tests/",
+      "docs/",
+      "dev/",
+      "examples/"
+    ],
+    "config_files": [
+      "pyproject.toml",
+      "requirements.txt",
+      "README.md",
+      "PROJECT_INDEX.md",
+      "PROJECT_INDEX.json"
+    ]
+  },
+  "entry_points": {
+    "cli_tools": {
+      "upload": [
+        {
+          "name": "md_to_feishu.py",
+          "purpose": "核心转换脚本",
+          "description": "Markdown → 飞书 block JSON",
+          "key_params": ["--parallel", "--output"]
+        },
+        {
+          "name": "md_to_feishu_upload.py",
+          "purpose": "统一上传脚本",
+          "description": "转换 + 上传一体化",
+          "key_params": ["--title", "--folder"]
+        },
+        {
+          "name": "create_feishu_doc.py",
+          "purpose": "创建单个云文档",
+          "description": "快速创建文档",
+          "key_params": ["--title", "--parent-id"]
+        },
+        {
+          "name": "batch_create_docs.py",
+          "purpose": "批量创建云文档",
+          "description": "文件夹迁移",
+          "key_params": ["--recursive", "--parallel"]
+        },
+        {
+          "name": "create_wiki_doc.py",
+          "purpose": "创建单个 Wiki 文档",
+          "description": "知识库维护",
+          "key_params": ["--space-id", "--space-name", "--personal"]
+        },
+        {
+          "name": "batch_create_wiki_docs.py",
+          "purpose": "批量创建 Wiki 文档",
+          "description": "知识库迁移",
+          "key_params": ["--space-name", "--personal", "--auto-permission"]
+        }
+      ],
+      "download": [
+        {
+          "name": "download_doc.py",
+          "purpose": "下载单个文档",
+          "description": "文档备份/导出",
+          "key_params": ["--space-name", "--wiki-path", "--doc-title"],
+          "featured": true
+        },
+        {
+          "name": "download_wiki.py",
+          "purpose": "批量下载 Wiki",
+          "description": "知识库备份",
+          "key_params": ["--space-name", "--personal", "--start-path"],
+          "featured": true
+        },
+        {
+          "name": "list_wiki_tree.py",
+          "purpose": "预览 Wiki 结构",
+          "description": "层次结构查看",
+          "key_params": ["--space-name", "--max-depth", "--start-path"],
+          "featured": true
+        }
+      ],
+      "data": [
+        {
+          "name": "md_table_to_bitable.py",
+          "purpose": "表格转 Bitable",
+          "description": "数据管理",
+          "key_params": ["--auto-types", "--create-app"]
+        }
+      ],
+      "debug": [
+        {
+          "name": "test_api_connectivity.py",
+          "purpose": "测试 API 连接",
+          "description": "问题诊断"
+        },
+        {
+          "name": "get_root_info.py",
+          "purpose": "获取根信息",
+          "description": "环境配置"
+        },
+        {
+          "name": "list_folders.py",
+          "purpose": "列出文件夹",
+          "description": "结构查看"
+        },
+        {
+          "name": "feishu_to_md.py",
+          "purpose": "飞书转 Markdown",
+          "description": "格式转换"
+        }
+      ],
+      "auth": [
+        {
+          "name": "setup_user_auth.py",
+          "purpose": "用户认证设置",
+          "description": "OAuth 授权流程"
+        },
+        {
+          "name": "diagnose_auth_flow.py",
+          "purpose": "认证流诊断",
+          "description": "授权问题排查"
+        },
+        {
+          "name": "diagnose_oauth.py",
+          "purpose": "OAuth 诊断",
+          "description": "配置检查"
+        },
+        {
+          "name": "diagnose_refresh_token.py",
+          "purpose": "刷新令牌诊断",
+          "description": "令牌更新问题"
+        },
+        {
+          "name": "diagnose_app_status.py",
+          "purpose": "应用状态诊断",
+          "description": "应用可用性检查"
+        },
+        {
+          "name": "verify_user_auth.py",
+          "purpose": "用户认证验证",
+          "description": "权限验证"
+        },
+        {
+          "name": "test_refresh_token_update.py",
+          "purpose": "刷新令牌测试",
+          "description": "令牌刷新流程"
+        },
+        {
+          "name": "verify_state_fix.py",
+          "purpose": "状态修复验证",
+          "description": "状态参数检查"
+        }
+      ]
+    },
+    "python_api": [
+      {
+        "module": "FeishuApiClient",
+        "path": "lib/feishu_api_client.py",
+        "purpose": "直连 API 客户端",
+        "lines": 1800,
+        "exports": {
+          "methods": 27,
+          "enums": 3,
+          "exceptions": 3
+        },
+        "features": [
+          "文档操作 API (3 个方法)",
+          "文件夹操作 API (4 个方法)",
+          "Wiki 操作 API (5 个方法)",
+          "Bitable 操作 API (6 个方法)",
+          "图片操作 API (2 个方法)",
+          "并行上传 API (2 个方法)",
+          "辅助方法 (7 个)"
+        ]
       },
-      "wiki_tree": {
-        "small": {"nodes": "<10", "serial": "~1s", "parallel": "~0.3s", "speedup": "3x"},
-        "medium": {"nodes": "10-50", "serial": "~8s", "parallel": "~2s", "speedup": "4x"},
-        "large": {"nodes": "50-100", "serial": "~30s", "parallel": "~6s", "speedup": "5x"},
-        "xlarge": {"nodes": "100+", "serial": "~60s+", "parallel": "~10s", "speedup": "6x+"}
+      {
+        "module": "FeishuMdUploader",
+        "path": "lib/feishu_md_uploader.py",
+        "purpose": "Markdown 到飞书 block 格式转换",
+        "lines": 400,
+        "features": [
+          "标题 (h1-h9)",
+          "段落/文本样式",
+          "代码块 (50+ 语言)",
+          "列表 (有序/无序)",
+          "图片 (本地/网络)",
+          "表格 (飞书表格格式)",
+          "数学公式 (LaTeX)",
+          "Mermaid 图表",
+          "引用块"
+        ]
+      },
+      {
+        "module": "WikiOperations",
+        "path": "lib/wiki_operations.py",
+        "purpose": "Wiki 操作共享库",
+        "lines": 300,
+        "features": [
+          "空间解析",
+          "路径解析",
+          "节点操作",
+          "异常处理"
+        ]
+      }
+    ]
+  },
+  "configuration": {
+    "package_manager": "uv",
+    "config_file": "pyproject.toml",
+    "entry_point": "feishu-doc-tools = 'scripts.md_to_feishu:main'",
+    "dependencies": {
+      "core": [
+        {
+          "name": "markdown-it-py",
+          "version": ">=3.0.0",
+          "purpose": "Markdown 解析器"
+        },
+        {
+          "name": "mdit-py-plugins",
+          "version": ">=0.4.0",
+          "purpose": "Markdown 插件"
+        },
+        {
+          "name": "requests",
+          "version": ">=2.28.0",
+          "purpose": "HTTP 客户端"
+        },
+        {
+          "name": "python-dotenv",
+          "version": ">=1.0.0",
+          "purpose": "环境变量管理"
+        }
+      ],
+      "dev": [
+        {
+          "name": "pytest",
+          "version": ">=7.0.0",
+          "purpose": "测试框架"
+        },
+        {
+          "name": "pytest-cov",
+          "version": ">=4.0.0",
+          "purpose": "覆盖率"
+        },
+        {
+          "name": "black",
+          "version": ">=23.0.0",
+          "purpose": "代码格式化"
+        },
+        {
+          "name": "flake8",
+          "version": ">=6.0.0",
+          "purpose": "代码检查"
+        },
+        {
+          "name": "mypy",
+          "version": ">=1.0.0",
+          "purpose": "类型检查"
+        }
+      ]
+    },
+    "environment_variables": {
+      "app_auth": {
+        "FEISHU_APP_ID": "应用 ID",
+        "FEISHU_APP_SECRET": "应用密钥",
+        "FEISHU_DEFAULT_FOLDER": "可选：默认文件夹",
+        "FEISHU_DEFAULT_WIKI_SPACE": "可选：默认 Wiki 空间"
+      },
+      "user_auth": {
+        "FEISHU_USER_AUTH_ENABLED": "启用用户认证",
+        "FEISHU_REDIRECT_URI": "OAuth 回调地址",
+        "FEISHU_ACCESS_TOKEN": "访问令牌（2 小时有效）",
+        "FEISHU_REFRESH_TOKEN": "刷新令牌（30 天有效）",
+        "FEISHU_TOKEN_EXPIRES_AT": "过期时间戳"
       }
     }
+  },
+  "documentation": {
+    "total_docs": 18,
+    "total_pages": 5240,
+    "categories": [
+      {
+        "name": "用户文档",
+        "path": "docs/user/",
+        "count": 7,
+        "pages": 2180,
+        "documents": [
+          {
+            "file": "QUICK_START.md",
+            "title": "10 分钟快速上手指南",
+            "read_time": "10 分钟"
+          },
+          {
+            "file": "DOWNLOAD_GUIDE.md",
+            "title": "下载功能完整指南",
+            "read_time": "15 分钟",
+            "featured": true
+          },
+          {
+            "file": "USER_AUTH_GUIDE.md",
+            "title": "用户认证使用指南",
+            "read_time": "12 分钟"
+          },
+          {
+            "file": "BATCH_OPERATIONS.md",
+            "title": "批量操作指南",
+            "read_time": "15 分钟"
+          },
+          {
+            "file": "BITABLE_OPERATIONS.md",
+            "title": "多维表格操作",
+            "read_time": "10 分钟"
+          },
+          {
+            "file": "API_OPERATIONS.md",
+            "title": "API 完整参考",
+            "read_time": "20 分钟"
+          },
+          {
+            "file": "TROUBLESHOOTING.md",
+            "title": "故障排除指南",
+            "read_time": "10 分钟"
+          },
+          {
+            "file": "PERFORMANCE_OPTIMIZATION.md",
+            "title": "性能优化指南",
+            "read_time": "15 分钟"
+          }
+        ]
+      },
+      {
+        "name": "专题指南",
+        "path": "docs/guides/",
+        "count": 2,
+        "pages": 650,
+        "documents": [
+          {
+            "file": "DOWNLOAD_REFERENCE.md",
+            "title": "下载功能技术参考",
+            "target": "开发者和技术用户"
+          },
+          {
+            "file": "LIST_WIKI_TREE_GUIDE.md",
+            "title": "Wiki 结构预览工具详解",
+            "target": "所有用户"
+          }
+        ]
+      },
+      {
+        "name": "设计文档",
+        "path": "docs/design/",
+        "count": 5,
+        "pages": 850,
+        "documents": [
+          {
+            "file": "DESIGN.md",
+            "title": "系统架构设计",
+            "focus": "整体设计思路"
+          },
+          {
+            "file": "DIRECT_API_MODE.md",
+            "title": "直连 API 模式",
+            "focus": "无 AI 的直接调用"
+          },
+          {
+            "file": "FEISHU_MCP_INTEGRATION.md",
+            "title": "MCP 服务器集成",
+            "focus": "Feishu-MCP 使用"
+          },
+          {
+            "file": "UNIFIED_WIKI_PATH_SEMANTICS.md",
+            "title": "参数语义统一指南",
+            "focus": "从 v0.2.0 迁移"
+          },
+          {
+            "file": "FEATURE_GAPS.md",
+            "title": "功能限制说明",
+            "focus": "已知限制和 workaround"
+          }
+        ]
+      },
+      {
+        "name": "技术文档",
+        "path": "docs/technical/",
+        "count": 1,
+        "pages": 1310,
+        "documents": [
+          {
+            "file": "TENANT_TO_USER_AUTH_MIGRATION.md",
+            "title": "OAuth 认证迁移技术文档",
+            "focus": "Tenant → User Auth 完整迁移过程"
+          }
+        ]
+      },
+      {
+        "name": "归档文档",
+        "path": "docs/archive/",
+        "count": 3,
+        "pages": 250,
+        "documents": [
+          {
+            "file": "CHANGELOG_v0.2.1.md",
+            "title": "v0.2.1 版本变更日志"
+          },
+          {
+            "file": "RECURSIVE_SEARCH_COMPLETE.md",
+            "title": "递归搜索功能完成报告"
+          }
+        ]
+      }
+    ]
+  },
+  "testing": {
+    "framework": "pytest",
+    "coverage_tool": "pytest-cov",
+    "test_files": [
+      {
+        "name": "test_md_to_feishu.py",
+        "coverage": "Markdown 转换",
+        "test_cases": 15
+      },
+      {
+        "name": "test_feishu_api_extended.py",
+        "coverage": "API 客户端",
+        "test_cases": 12
+      },
+      {
+        "name": "test_table_to_bitable.py",
+        "coverage": "Bitable 操作",
+        "test_cases": 10
+      },
+      {
+        "name": "test_performance.py",
+        "coverage": "性能基准",
+        "test_cases": 8
+      },
+      {
+        "name": "test_recursive_search.py",
+        "coverage": "递归搜索",
+        "test_cases": 5
+      },
+      {
+        "name": "test_user_auth.py",
+        "coverage": "用户认证",
+        "test_cases": 6
+      },
+      {
+        "name": "test_oauth_url.py",
+        "coverage": "OAuth URL",
+        "test_cases": 4
+      },
+      {
+        "name": "test_scope_permissions.py",
+        "coverage": "权限范围",
+        "test_cases": 3
+      }
+    ],
+    "commands": {
+      "all": "uv run pytest tests/",
+      "specific": "uv run pytest tests/test_md_to_feishu.py -v",
+      "coverage": "uv run pytest --cov=scripts --cov=lib --cov-report=term-missing tests/",
+      "performance": "uv run pytest tests/test_performance.py -v"
+    }
+  },
+  "performance": {
+    "upload": {
+      "small": {
+        "size": "<50 blocks",
+        "serial": "~3s",
+        "parallel": "~2s",
+        "improvement": "1.5x"
+      },
+      "medium": {
+        "size": "50-200 blocks",
+        "serial": "~30s",
+        "parallel": "~8s",
+        "improvement": "3.8x"
+      },
+      "large": {
+        "size": "200-1000 blocks",
+        "serial": "~180s",
+        "parallel": "~30s",
+        "improvement": "6x"
+      },
+      "xlarge": {
+        "size": "1000+ blocks",
+        "serial": "~600s",
+        "parallel": "~75s",
+        "improvement": "8x"
+      }
+    },
+    "wiki_traversal": {
+      "small": {
+        "size": "<10 节点",
+        "serial": "~1s",
+        "parallel": "~0.3s",
+        "improvement": "3x"
+      },
+      "medium": {
+        "size": "10-50 节点",
+        "serial": "~8s",
+        "parallel": "~2s",
+        "improvement": "4x"
+      },
+      "large": {
+        "size": "50-100 节点",
+        "serial": "~30s",
+        "parallel": "~6s",
+        "improvement": "5x"
+      },
+      "xlarge": {
+        "size": "100+ 节点",
+        "serial": "~60s+",
+        "parallel": "~10s",
+        "improvement": "6x+"
+      }
+    },
+    "wiki_download": {
+      "small": {
+        "size": "<10 文档",
+        "time": "~5s",
+        "throughput": "~2 docs/s"
+      },
+      {
+        "size": "10-50 文档",
+        "time": "~30s",
+        "throughput": "~1.5 docs/s"
+      },
+      {
+        "size": "50-100 文档",
+        "time": "~90s",
+        "throughput": "~1 doc/s"
+      },
+      {
+        "size": "100+ 文档",
+        "time": "~3min",
+        "throughput": "~0.6 docs/s"
+      }
+    }
+  },
+  "related_projects": {
+    "complementary": [
+      {
+        "name": "Feishu-MCP",
+        "url": "https://github.com/your-username/Feishu-MCP",
+        "purpose": "飞书 MCP 服务器",
+        "features": [
+          "AI 辅助编辑",
+          "智能修改",
+          "交互式操作"
+        ]
+      }
+    ],
+    "dependencies": [
+      {
+        "name": "markdown-it-py",
+        "url": "https://github.com/executablebooks/markdown-it-py",
+        "purpose": "Python Markdown 解析器"
+      },
+      {
+        "name": "requests",
+        "url": "https://github.com/psf/requests",
+        "purpose": "HTTP 客户端"
+      },
+      {
+        "name": "mdit-py-plugins",
+        "url": "https://github.com/executablebooks/mdit-py-plugins",
+        "purpose": "Markdown 插件集合"
+      }
+    ]
+  },
+  "quick_start": {
+    "install": "uv sync",
+    "configure": "export FEISHU_APP_ID=\"cli_xxxxx\" && export FEISHU_APP_SECRET=\"xxxxx\"",
+    "test": "uv run python scripts/test_api_connectivity.py",
+    "upload": "uv run python scripts/create_feishu_doc.py README.md"
+  },
+  "contributing": {
+    "workflow": [
+      "Fork 项目",
+      "创建特性分支 (git checkout -b feature/AmazingFeature)",
+      "提交更改 (git commit -m 'feat: Add amazing feature')",
+      "推送到分支 (git push origin feature/AmazingFeature)",
+      "创建 Pull Request"
+    ],
+    "guidelines": [
+      "遵循现有代码风格",
+      "添加测试覆盖新功能",
+      "更新相关文档",
+      "确保所有测试通过"
+    ]
+  },
+  "metadata": {
+    "last_updated": "2026-01-19",
+    "version": "0.2.1",
+    "status": "production_ready",
+    "maintenance": "active"
   }
 }
