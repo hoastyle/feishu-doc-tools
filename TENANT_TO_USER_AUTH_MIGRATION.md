@@ -123,8 +123,136 @@ if not scope:
 |-------|---------|--------|
 | 应用状态 | **已启用** | 20069: 应用未启用 |
 | 应用可用性 | **已发布/已安装** | 20009: 租户未安装应用 |
+| 应用存在性 | **正常** | 20048: 应用不存在 |
 | Scope 权限 | **已申请且已开通** | 20027: scope 包含未开通权限 |
 | 测试用户权限 | **有权限** | 20010: 用户无应用使用权限 |
+| 用户状态 | **正常** | 20066: 用户状态非法 |
+
+### 完整错误码参考表
+
+| 错误码 | 描述 | 检查项 | 解决方案 |
+|-------|------|--------|----------|
+| **20009** | 租户未安装应用 | 应用发布状态 | 添加应用到企业，确保已安装 |
+| **20010** | 用户无应用使用权限 | 测试用户权限 | 确认用户在企业内且有应用权限 |
+| **20027** | scope 包含未开通权限 | 权限申请状态 | 在开发者后台申请对应权限 |
+| **20029** | redirect_uri 不匹配 | 重定向 URI 配置 | 确保完全匹配（协议、域名、端口、路径） |
+| **20048** | 应用不存在 | App ID 配置 | 检查 FEISHU_APP_ID 是否正确 |
+| **20066** | 用户状态非法 | 用户账号状态 | 确认用户未被停用或删除 |
+| **20069** | 应用未启用 | 应用启用状态 | 在开发者后台启用应用 |
+| **20071** | redirect_uri 不一致 | Token 端点参数 | 确保 token 交换时包含相同的 redirect_uri |
+
+### 应用状态验证步骤
+
+#### 步骤 1: 验证应用基本信息
+
+**路径**: 开发者后台 > 应用详情 > 凭证与基础信息
+
+```
+应用名称: ___________
+App ID: cli_a9e09cc76d345bb4
+App 类型: [ ] 自建应用  [ ] 商店应用
+应用状态: [ ] 已启用  [ ] 停用  [ ] 未发布
+可用范围: [ ] 仅本企业  [ ] 所有企业  [ ] 指定企业
+创建时间: ___________
+```
+
+**关键检查**:
+- [ ] 应用是否"启用"？
+- [ ] 应用是否"已发布"？
+- [ ] 应用是否"已安装"？
+
+#### 步骤 2: 验证重定向 URI 配置
+
+**路径**: 开发者后台 > 应用详情 > 开发配置 > 安全设置
+
+```
+已配置的重定向 URL:
+[ ] http://localhost:3333/callback
+[ ] https://example.com/callback
+[ ] 其他: ___________
+```
+
+**注意事项**:
+- ✅ 必须完全匹配（包括协议、域名、端口、路径）
+- ❌ 不要有尾部斜杠: `/callback/` ❌
+- ❌ 协议必须正确: `https://localhost:3333/callback` ❌
+
+#### 步骤 3: 验证测试用户权限
+
+**需要确认**:
+```
+测试用户的飞书账号: ___________
+是否在应用可用企业内: [ ] 是  [ ] 否
+是否有应用使用权限: [ ] 是  [ ] 否
+用户状态: [ ] 正常  [ ] 停用  [ ] 已删除
+```
+
+### 诊断测试方法
+
+#### 测试 1: 使用最小权限测试
+
+生成只包含 `contact:user.base:readonly` 的授权 URL（最常见的权限）：
+
+```bash
+https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=contact%3Auser.base%3Areadonly&response_type=code&state=123456
+```
+
+**预期结果**:
+- ❌ 如果仍然报错 → 问题可能是应用状态/用户权限
+- ✅ 如果正常显示授权页面 → 问题确实是 scope 权限！
+
+#### 测试 2: 最简化授权 URL（无 scope）
+
+```bash
+https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&response_type=code
+```
+
+**说明**: 不传递 scope 和 state 参数
+
+**预期结果**:
+- ✅ 如果成功 → scope 参数有问题
+- ❌ 如果失败 → 应用状态/用户权限问题
+
+#### 测试 3: 逐步增加权限
+
+如果最小权限测试成功，逐个添加权限进行测试：
+
+```bash
+# 测试 1: 只加 offline_access
+scope=offline_access
+
+# 测试 2: 加 docx:document
+scope=contact:user.base:readonly%20docx:document
+
+# 测试 3: 加 wiki:wiki:readonly
+scope=contact:user.base:readonly%20wiki:wiki:readonly
+```
+
+### 飞书后台截图需求
+
+为了更准确地诊断，如果问题持续，请提供以下截图：
+
+#### 截图 1: 凭证与基础信息页面
+- 显示 App ID
+- 显示应用状态（启用/停用）
+- 显示应用类型
+
+#### 截图 2: 权限管理页面
+- 显示已申请的用户权限
+- 显示权限状态（已开通/待审核/已拒绝）
+
+#### 截图 3: 安全设置 - 重定向 URL
+- 显示已配置的重定向 URI
+- 确认为 `http://localhost:3333/callback`
+
+#### 截图 4: 应用发布/可用性管理
+- 显示应用发布状态
+- 显示可用企业范围
+
+#### 截图 5: 错误页面
+- 完整的浏览器地址栏 URL
+- 错误页面内容
+- Log ID（如果有）
 
 ---
 
@@ -1152,19 +1280,32 @@ uv run python scripts/setup_user_auth.py
 
 ---
 
-**文档版本**: v2.0（整合版）
+**文档版本**: v3.0（最终整合版）
 **最后更新**: 2026-01-19
-**状态**: ✅ 所有问题已解决并验证
+**状态**: ✅ 所有问题已解决并验证 | ✅ 文档已整合完成
 **维护者**: Claude Code + 梁浩
 
-**说明**：本文档是对 8 份独立诊断报告的整合版本，包含：
-- TENANT_TO_USER_AUTH_MIGRATION.md（原始框架）
-- USER_AUTH_FIX_SUMMARY.md（修复总结）
-- OAUTH_SCOPE_PERMISSION_ISSUE.md（Scope 诊断）
-- TROUBLESHOOT_STATE_PARAMETER.md（State 故障排查）
-- REFRESH_TOKEN_FIX.md（Token 修复报告）
-- STATE_FIX_REPORT.md（JSON 格式差异）
-- FEISHU_MCP_ALIGNMENT.md（对齐改进）
-- STATE_FIX_TEST_GUIDE.md（测试指南）
+**文档整合说明**：
 
-所有重复内容已合并，所有细节已保留，结构已优化。
+本文档是 OAuth 迁移过程的**唯一权威技术文档**，已整合以下中间文档的所有内容：
+
+**已整合的源文档**（2026-01-19 删除）：
+- `OAUTH_V2_MIGRATION.md` - 早期迁移文档（v2 API 实现、URL 编码修复）
+- `OAUTH_SCOPE_PERMISSION_ISSUE.md` - Scope 权限诊断（错误码参考、后端配置）
+- `OAUTH_APP_STATUS_ISSUE.md` - 应用状态诊断（验证步骤、测试方法）
+- `USER_AUTH_FIX_SUMMARY.md` - 修复总结（问题列表、测试验证）
+
+**保留的配套文档**：
+- `docs/user/USER_AUTH_GUIDE.md` - 用户认证使用指南（面向最终用户）
+
+**整合成果**：
+- ✅ 所有技术细节已保留
+- ✅ 错误码参考表已完善
+- ✅ 诊断测试方法已整合
+- ✅ 应用状态验证步骤已添加
+- ✅ 消除重复内容，优化结构
+- ✅ 单一权威技术文档（~38,000 字）
+
+**使用建议**：
+- 技术实现和问题排查 → 参考本文档
+- 用户使用和 API 参考 → 参考 `docs/user/USER_AUTH_GUIDE.md`
