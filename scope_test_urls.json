@@ -1,0 +1,38 @@
+[
+  {
+    "name": "测试 1: 最小权限（contact:user.base:readonly）",
+    "scope": "contact:user.base:readonly",
+    "description": "最常见的用户权限，几乎所有应用都有",
+    "url": "https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=contact%3Auser.base%3Areadonly&response_type=code&state=123456"
+  },
+  {
+    "name": "测试 2: 只有 offline_access",
+    "scope": "offline_access",
+    "description": "只请求离线访问权限",
+    "url": "https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=offline_access&response_type=code&state=123456"
+  },
+  {
+    "name": "测试 3: 完全不传 scope",
+    "scope": "",
+    "description": "不传递任何权限参数",
+    "url": "https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=&response_type=code&state=123456"
+  },
+  {
+    "name": "测试 4: 单独测试 docx:document",
+    "scope": "docx:document",
+    "description": "只测试文档创建权限",
+    "url": "https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=docx%3Adocument&response_type=code&state=123456"
+  },
+  {
+    "name": "测试 5: 单独测试 wiki:wiki:readonly",
+    "scope": "wiki:wiki:readonly",
+    "description": "只测试知识库只读权限",
+    "url": "https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=wiki%3Awiki%3Areadonly&response_type=code&state=123456"
+  },
+  {
+    "name": "测试 6: 当前代码使用的完整 scope",
+    "scope": "docx:document docx:document:readonly wiki:wiki:readonly offline_access",
+    "description": "当前 generate_oauth_url() 使用的 scope",
+    "url": "https://accounts.feishu.cn/open-apis/authen/v1/authorize?client_id=cli_a9e09cc76d345bb4&redirect_uri=http%3A%2F%2Flocalhost%3A3333%2Fcallback&scope=docx%3Adocument%20docx%3Adocument%3Areadonly%20wiki%3Awiki%3Areadonly%20offline_access&response_type=code&state=123456"
+  }
+]
