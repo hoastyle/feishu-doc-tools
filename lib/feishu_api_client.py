@@ -15,16 +15,30 @@ import json
 import base64
 import logging
 import threading
+import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from enum import Enum
 
 import requests
 from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
+
+
+class AuthMode(Enum):
+    """
+    飞书 API 认证模式
+
+    TENANT: 使用 tenant_access_token（应用身份，默认）
+    USER: 使用 user_access_token（用户身份，需要 OAuth 授权）
+    """
+
+    TENANT = "tenant"
+    USER = "user"
 
 
 class BitableFieldType:
@@ -87,6 +101,14 @@ class FeishuApiClient:
     BLOCKS_ENDPOINT_TEMPLATE = "/docx/v1/documents/{doc_id}/blocks/{parent_id}/children"
     IMAGE_UPLOAD_ENDPOINT = "/docx/v1/media/upload"
 
+    # User Authentication Endpoints (Updated to v2 API)
+    # 授权端点使用 accounts.feishu.cn 域名（不是 open.feishu.cn）
+    USER_AUTH_BASE_URL = "https://accounts.feishu.cn/open-apis"
+    USER_AUTH_ENDPOINT = "/authen/v1/authorize"
+    USER_TOKEN_ENDPOINT = "/authen/v2/oauth/token"  # Updated to v2
+    USER_REFRESH_ENDPOINT = "/authen/v2/oauth/token"  # Same endpoint, different grant_type
+    USER_INFO_ENDPOINT = "/authen/v1/user_info"
+
     # Token cache (class-level for thread-safe access)
     _token_cache: Optional[Dict[str, str]] = None
     _token_expire_time: Optional[int] = None
@@ -96,16 +118,36 @@ class FeishuApiClient:
     MAX_BATCH_WORKERS = 3  # Maximum parallel batch uploads
     MAX_IMAGE_WORKERS = 5  # Maximum parallel image uploads
 
-    def __init__(self, app_id: str, app_secret: str):
+    def __init__(
+        self,
+        app_id: str,
+        app_secret: str,
+        auth_mode: AuthMode = AuthMode.TENANT,
+        user_refresh_token: Optional[str] = None,
+    ):
         """
         Initialize Feishu API client with connection pooling.
 
         Args:
             app_id: Feishu app ID (cli_xxxxx)
             app_secret: Feishu app secret
+            auth_mode: Authentication mode (TENANT or USER)
+            user_refresh_token: Refresh token for user authentication (required if auth_mode=USER)
         """
         self.app_id = app_id
         self.app_secret = app_secret
+        self.auth_mode = auth_mode
+
+        # User authentication state
+        self._user_access_token: Optional[str] = None
+        self._user_refresh_token: Optional[str] = user_refresh_token
+        self._user_token_expire_time: Optional[int] = None
+        self._user_token_lock = threading.Lock()
+
+        # Try to load user tokens from environment if using user mode
+        if auth_mode == AuthMode.USER and not user_refresh_token:
+            self._user_refresh_token = os.environ.get("FEISHU_USER_REFRESH_TOKEN")
+
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json; charset=utf-8"})
 
@@ -113,12 +155,25 @@ class FeishuApiClient:
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
 
-        retry_strategy = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
-        )
+        # Retry configuration with compatibility for different urllib3 versions
+        retry_kwargs = {
+            "total": 3,
+            "backoff_factor": 0.5,
+            "status_forcelist": [429, 500, 502, 503, 504],
+        }
+
+        # Use allowed_methods for urllib3 >= 2.0, method_whitelist for older versions
+        try:
+            retry_strategy = Retry(
+                **retry_kwargs,
+                allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+            )
+        except TypeError:
+            # Fall back to method_whitelist for older urllib3
+            retry_strategy = Retry(
+                **retry_kwargs,
+                method_whitelist=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],
+            )
 
         adapter = HTTPAdapter(
             pool_connections=10,
@@ -143,6 +198,8 @@ class FeishuApiClient:
         Environment variables:
             FEISHU_APP_ID: Feishu app ID
             FEISHU_APP_SECRET: Feishu app secret
+            FEISHU_AUTH_MODE: Authentication mode (tenant or user, default: tenant)
+            FEISHU_USER_REFRESH_TOKEN: Refresh token for user authentication (if auth_mode=user)
 
         Args:
             env_file: Optional path to custom .env file
@@ -206,7 +263,21 @@ class FeishuApiClient:
                 "  4. Or use ../Feishu-MCP/.env (auto-detected)"
             )
 
-        return cls(app_id, app_secret)
+        # Determine authentication mode
+        auth_mode_str = os.environ.get("FEISHU_AUTH_MODE", "tenant").lower()
+        auth_mode = AuthMode.USER if auth_mode_str == "user" else AuthMode.TENANT
+
+        # Get user refresh token if using user mode
+        user_refresh_token = None
+        if auth_mode == AuthMode.USER:
+            user_refresh_token = os.environ.get("FEISHU_USER_REFRESH_TOKEN")
+            if not user_refresh_token:
+                logger.warning(
+                    "FEISHU_AUTH_MODE=user but FEISHU_USER_REFRESH_TOKEN not set. "
+                    "You'll need to call set_user_token() or exchange_authorization_code() first."
+                )
+
+        return cls(app_id, app_secret, auth_mode=auth_mode, user_refresh_token=user_refresh_token)
 
     def get_default_folder_token(self) -> Optional[str]:
         """
@@ -282,6 +353,337 @@ class FeishuApiClient:
             logger.info(f"Successfully obtained tenant token, expires in {expire}s")
             return token
 
+    # ========================================================================
+    # User Authentication Methods
+    # ========================================================================
+
+    def set_user_token(self, access_token: str, refresh_token: Optional[str] = None, expires_in: int = 7140):
+        """
+        直接设置用户访问令牌（用于已获得的令牌）
+
+        Args:
+            access_token: 用户访问令牌
+            refresh_token: 刷新令牌（可选）
+            expires_in: 过期时间（秒，默认约2小时）
+
+        Example:
+            >>> client.set_user_token(
+            ...     access_token="eyJhbGci...",
+            ...     refresh_token="ur-oQ0mMq6...",
+            ...     expires_in=7140
+            ... )
+        """
+        with self._user_token_lock:
+            self._user_access_token = access_token
+            self._user_refresh_token = refresh_token
+            self._user_token_expire_time = int(time.time()) + expires_in
+            logger.info("User access token set successfully")
+
+    def exchange_authorization_code(self, authorization_code: str) -> Dict[str, Any]:
+        """
+        使用授权码换取用户访问令牌
+
+        Note:
+            根据飞书 v2 API 文档：
+            https://open.feishu.cn/document/authentication-management/access-token/get-user-access-token
+            - 令牌端点使用 /authen/v2/oauth/token
+            - v2 API 响应直接在响应体中返回字段（不在 data 对象中）
+            - 用户信息需要通过单独的 API 调用获取
+
+        Args:
+            authorization_code: OAuth 授权流程中获取的授权码
+
+        Returns:
+            {
+                "access_token": "eyJhbGci...",
+                "refresh_token": "ur-oQ0mMq6...",
+                "expires_in": 7140,
+                "refresh_token_expires_in": 604800,
+                "name": "用户姓名",
+                "open_id": "ou_xxx",
+                "email": "user@example.com"
+            }
+
+        Raises:
+            FeishuApiAuthError: 如果令牌交换失败
+
+        Example:
+            >>> result = client.exchange_authorization_code("your_auth_code")
+            >>> print(f"用户: {result['name']}")
+            >>> print(f"令牌: {result['access_token'][:20]}...")
+        """
+        url = f"{self.BASE_URL}{self.USER_TOKEN_ENDPOINT}"
+        payload = {
+            "grant_type": "authorization_code",
+            "client_id": self.app_id,
+            "client_secret": self.app_secret,
+            "code": authorization_code,
+        }
+
+        logger.info("Exchanging authorization code for user access token")
+        response = self.session.post(url, json=payload, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiAuthError(f"Token exchange failed: HTTP {response.status_code}")
+
+        data = response.json()
+
+        if data.get("code") != 0:
+            error_msg = data.get("msg", "Unknown error")
+            raise FeishuApiAuthError(f"Token exchange failed: {error_msg}")
+
+        # v2 API: 字段直接在响应体中，不在 data 对象中
+        access_token = data.get("access_token")
+        refresh_token = data.get("refresh_token")
+        expires_in = data.get("expires_in", 7200)
+        refresh_token_expires_in = data.get("refresh_token_expires_in", 604800)
+
+        if not access_token:
+            raise FeishuApiAuthError("No access_token in response")
+
+        # Store tokens
+        self.set_user_token(access_token, refresh_token, expires_in)
+
+        # Get user information (requires separate API call)
+        user_info = {}
+        try:
+            user_info = self.get_user_info()
+        except Exception as e:
+            logger.warning(f"Failed to get user info: {e}")
+
+        # Return token information
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": expires_in,
+            "refresh_token_expires_in": refresh_token_expires_in,
+            "name": user_info.get("name"),
+            "open_id": user_info.get("open_id"),
+            "email": user_info.get("email"),
+            "user_id": user_info.get("user_id"),
+        }
+
+    def get_user_token(self, force_refresh: bool = False) -> str:
+        """
+        获取或刷新用户访问令牌（线程安全）
+
+        令牌会被缓存约2小时。
+        如果 force_refresh 为 True，则强制刷新令牌。
+
+        Args:
+            force_refresh: 即使有缓存也强制刷新令牌
+
+        Returns:
+            user_access_token
+
+        Raises:
+            FeishuApiAuthError: 如果认证失败或没有可用的刷新令牌
+
+        Example:
+            >>> token = client.get_user_token()
+        """
+        current_time = int(time.time())
+
+        with self._user_token_lock:
+            # Check cache with lock for thread safety
+            if not force_refresh and self._user_access_token and self._user_token_expire_time:
+                if current_time < self._user_token_expire_time - 300:  # Refresh 5 min before expiry
+                    logger.debug("Using cached user access token")
+                    return self._user_access_token
+
+            # Try to refresh if we have a refresh token
+            if self._user_refresh_token:
+                logger.info("Refreshing user access token")
+                try:
+                    return self.refresh_user_token()
+                except FeishuApiAuthError as e:
+                    logger.error(f"Failed to refresh user token: {e}")
+                    # Continue to error below
+
+            # No valid token available
+            raise FeishuApiAuthError(
+                "No valid user access token available. "
+                "Please either: 1) Call exchange_authorization_code() with an authorization code, "
+                "2) Call set_user_token() with a valid token, or "
+                "3) Set FEISHU_USER_REFRESH_TOKEN in environment."
+            )
+
+    def refresh_user_token(self) -> str:
+        """
+        使用刷新令牌获取新的用户访问令牌
+
+        Note:
+            根据飞书 v2 API 文档：
+            https://open.feishu.cn/document/authentication-management/access-token/refresh-user-access-token
+            刷新令牌需要包含 client_id 和 client_secret
+
+        Returns:
+            新的用户访问令牌
+
+        Raises:
+            FeishuApiAuthError: 如果刷新失败
+
+        Example:
+            >>> new_token = client.refresh_user_token()
+        """
+        if not self._user_refresh_token:
+            raise FeishuApiAuthError("No refresh token available")
+
+        url = f"{self.BASE_URL}{self.USER_REFRESH_ENDPOINT}"
+        payload = {
+            "grant_type": "refresh_token",
+            "client_id": self.app_id,
+            "client_secret": self.app_secret,
+            "refresh_token": self._user_refresh_token,
+        }
+
+        logger.debug("Requesting user token refresh")
+        response = self.session.post(url, json=payload, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiAuthError(f"Token refresh failed: HTTP {response.status_code}")
+
+        data = response.json()
+
+        if data.get("code") != 0:
+            error_msg = data.get("msg", "Unknown error")
+            raise FeishuApiAuthError(f"Token refresh failed: {error_msg}")
+
+        # v2 API 直接在响应体中返回字段（不在 data 对象中）
+        access_token = data.get("access_token")
+        refresh_token = data.get("refresh_token")
+        expires_in = data.get("expires_in", 7140)
+
+        if not access_token:
+            raise FeishuApiAuthError("No access_token in refresh response")
+
+        # Update stored tokens
+        self.set_user_token(access_token, refresh_token, expires_in)
+
+        logger.info(f"User access token refreshed successfully, expires in {expires_in}s")
+        return access_token
+
+    def get_user_info(self) -> Dict[str, Any]:
+        """
+        获取当前用户信息
+
+        Returns:
+            {
+                "name": "用户姓名",
+                "en_name": "英文名",
+                "open_id": "ou_xxx",
+                "union_id": "on_xxx",
+                "email": "user@example.com",
+                "user_id": "xxx",
+                "mobile": "+86xxx",
+                "avatar_url": "https://..."
+            }
+
+        Raises:
+            FeishuApiAuthError: 如果获取用户信息失败
+
+        Example:
+            >>> info = client.get_user_info()
+            >>> print(f"用户: {info['name']} ({info['email']})")
+        """
+        token = self.get_user_token()
+        url = f"{self.BASE_URL}{self.USER_INFO_ENDPOINT}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.debug("Fetching user info")
+        response = self.session.get(url, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiAuthError(f"Failed to get user info: HTTP {response.status_code}")
+
+        data = response.json()
+
+        if data.get("code") != 0:
+            error_msg = data.get("msg", "Unknown error")
+            raise FeishuApiAuthError(f"Failed to get user info: {error_msg}")
+
+        user_info = data.get("data", {})
+        logger.info(f"Got user info for: {user_info.get('name', 'Unknown')}")
+        return user_info
+
+    def generate_oauth_url(
+        self, redirect_uri: str = "http://localhost:3333/callback", state: Optional[str] = None
+    ) -> str:
+        """
+        生成 OAuth 授权 URL
+
+        Args:
+            redirect_uri: OAuth 回调地址
+            state: 状态参数（用于防止 CSRF 攻击）
+
+        Returns:
+            OAuth 授权 URL
+
+        Note:
+            根据 https://open.feishu.cn/document/common-capabilities/sso/api/obtain-oauth-code
+            - 授权端点使用 accounts.feishu.cn 域名，参数名使用 client_id（不是 app_id）
+            - state 必须是纯数字字符串（参考官方 Go 示例：fmt.Sprintf("%d", rand.Int())）
+
+        Example:
+            >>> url = client.generate_oauth_url()
+            >>> print(f"请访问: {url}")
+        """
+        import secrets
+        import random
+
+        # 权限范围：文档和 Wiki 的只读权限 + offline_access（用于获取 refresh_token）
+        # 参考: https://open.feishu.cn/document/common-capabilities/sso/api/obtain-oauth-code
+        # 注意：wiki:wiki 不是有效权限，只使用 wiki:wiki:readonly
+        scope = "docx:document docx:document:readonly wiki:wiki:readonly offline_access"
+
+        # 生成符合飞书要求的 state：**纯数字字符串**（参考官方 Go 代码）
+        # 官方示例: state := fmt.Sprintf("%d", rand.Int())
+        if not state:
+            # 使用纯数字字符串（与官方 Go 代码一致）
+            state = str(random.randint(1, 9007199254740991))  # JavaScript MAX_SAFE_INTEGER
+
+        # 参数名称：使用 client_id（不是 app_id）
+        # 必须使用 URLEncode 对所有参数值进行编码
+        from urllib.parse import quote
+
+        # 构建参数字典（所有值都需要 URL 编码）
+        params = {
+            "client_id": self.app_id,
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "response_type": "code",  # 必须是 "code"
+            "state": state,
+        }
+
+        # 使用 USER_AUTH_BASE_URL（accounts.feishu.cn）而不是 BASE_URL（open.feishu.cn）
+        url = f"{self.USER_AUTH_BASE_URL}{self.USER_AUTH_ENDPOINT}?"
+        # 正确的 URL 编码：所有参数值都需要编码（特别是 scope 中的空格）
+        url += "&".join([f"{k}={quote(str(v), safe='')}" for k, v in params.items()])
+
+        return url
+
+    # ========================================================================
+    # Token Management
+    # ========================================================================
+
+    def _get_token(self) -> str:
+        """
+        根据认证模式获取相应的令牌
+
+        Returns:
+            访问令牌（tenant_access_token 或 user_access_token）
+
+        Raises:
+            FeishuApiAuthError: 如果获取令牌失败
+
+        Example:
+            >>> token = client._get_token()  # 内部方法
+        """
+        if self.auth_mode == AuthMode.USER:
+            return self.get_user_token()
+        else:
+            return self.get_tenant_token()
+
     def create_document(
         self, title: str, folder_token: Optional[str] = None, doc_type: str = "docx"
     ) -> Dict[str, Any]:
@@ -310,7 +712,7 @@ class FeishuApiClient:
             >>> result = client.create_document("My Document", folder_token="fldcnxxxxx")
             >>> print(result["url"])
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/docx/v1/documents"
 
@@ -363,7 +765,7 @@ class FeishuApiClient:
         Example:
             >>> root_token = client.get_root_folder_token()
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
         # Use the correct API endpoint (v2 explorer, not v1 drive)
         url = f"{self.BASE_URL}/drive/explorer/v2/root_folder/meta"
         headers = {"Authorization": f"Bearer {token}"}
@@ -411,7 +813,7 @@ class FeishuApiClient:
             >>> user_id = client.get_current_user_id()
             >>> print(f"Current user: {user_id}")
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         # First, we need to get the user_id. Since we're using service account,
         # we can get the current user by calling the permission API with our own auth.
@@ -472,7 +874,7 @@ class FeishuApiClient:
         Example:
             >>> client.set_document_permission("doxcnxxxxx", "ou_xxxxx", "edit")
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/permissions/invite"
 
@@ -528,7 +930,7 @@ class FeishuApiClient:
             >>> result = client.create_folder("My Folder")
             >>> print(result["folder_token"])
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         if parent_token is None:
             parent_token = self.get_root_folder_token()
@@ -587,7 +989,7 @@ class FeishuApiClient:
             >>> for item in items:
             ...     print(item["name"], item["type"])
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/drive/v1/files"
         params = {
@@ -639,7 +1041,7 @@ class FeishuApiClient:
             >>> for space in spaces:
             ...     print(space["name"], space["space_id"])
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/wiki/v2/spaces"
         headers = {"Authorization": f"Bearer {token}"}
@@ -762,7 +1164,7 @@ class FeishuApiClient:
             ...     parent_node_token="nodcn***"
             ... )
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/wiki/v2/spaces/{space_id}/nodes"
         headers = {"Authorization": f"Bearer {token}"}
@@ -948,7 +1350,7 @@ class FeishuApiClient:
             ... )
             >>> print(f"Created space: {space['name']} ({space['space_id']})")
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/wiki/v2/spaces"
         payload = {"name": name}
@@ -1007,7 +1409,7 @@ class FeishuApiClient:
             >>> my_lib = client.get_my_library()
             >>> print(f"My Library ID: {my_lib['space_id']}")
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/wiki/v2/spaces/my_library"
         params = {"lang": lang}
@@ -1061,7 +1463,7 @@ class FeishuApiClient:
 
         # Get root folder info
         try:
-            token = self.get_tenant_token()
+            token = self._get_token()
             import requests
 
             url = f"{self.BASE_URL}/drive/explorer/v2/root_folder/meta"
@@ -1123,7 +1525,7 @@ class FeishuApiClient:
             ...     parent_node_token="nodcnxxxxx"
             ... )
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/wiki/v2/spaces/{space_id}/nodes"
         payload = {"title": title, "obj_type": "docx", "node_type": "origin"}
@@ -1195,7 +1597,7 @@ class FeishuApiClient:
             >>> # Create in specific folder
             >>> bitable = client.create_bitable("My Data", folder_token="fldcnxxxxx")
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/bitable/v1/apps"
         payload = {"name": name}
@@ -1266,7 +1668,7 @@ class FeishuApiClient:
             ... ]
             >>> table = client.create_table("app123", "People", fields)
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables"
 
@@ -1346,7 +1748,7 @@ class FeishuApiClient:
             ... ]
             >>> result = client.insert_records("app123", "table456", records)
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records"
 
@@ -1417,7 +1819,7 @@ class FeishuApiClient:
             ...         "app123", "table456", page_token=page1["page_token"]
             ...     )
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records"
         params = {"page_size": min(page_size, 500)}
@@ -1478,7 +1880,7 @@ class FeishuApiClient:
             ...     "app123", "table456", "rec789", {"Name": "Alice Updated", "Age": 31}
             ... )
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records/{record_id}"
 
@@ -1535,7 +1937,7 @@ class FeishuApiClient:
             >>> result = client.delete_record("app123", "table456", "rec789")
             >>> assert result["success"]
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         url = f"{self.BASE_URL}/bitable/v1/apps/{app_id}/tables/{table_id}/records/{record_id}"
 
@@ -1812,7 +2214,7 @@ class FeishuApiClient:
                 }
             }
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         # Enforce API limit: max 50 blocks per request
         batch_size = min(batch_size, 50)
@@ -1953,7 +2355,7 @@ class FeishuApiClient:
         Raises:
             FeishuApiRequestError: If upload or binding fails
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         # Step 1: Upload image
         logger.info(f"Uploading image: {image_path_or_url}")
@@ -2257,7 +2659,7 @@ class FeishuApiClient:
                 ]
             }
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         if parent_id is None:
             parent_id = doc_id
@@ -2451,7 +2853,7 @@ class FeishuApiClient:
                 ]
             }
         """
-        token = self.get_tenant_token()
+        token = self._get_token()
 
         endpoint = f"/docx/v1/documents/{doc_id}/blocks"
         url = f"{self.BASE_URL}{endpoint}"
