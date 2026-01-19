@@ -411,8 +411,8 @@ feishu-doc-tools/
 │   ├── technical/                   # 技术文档 (1 个)
 │   └── archive/                     # 归档文档 (3 个)
 │
-├── pyproject.toml               # uv 项目配置
-├── requirements.txt             # 依赖清单
+├── pyproject.toml               # uv 项目配置和依赖清单
+├── uv.lock                      # 依赖锁定文件（确保环境一致）
 └── README.md                    # 本文件
 ```
 

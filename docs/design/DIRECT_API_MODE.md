@@ -254,9 +254,9 @@ uv run python scripts/md_to_feishu_upload.py file.md doc_id
 ### Issue: "ImportError: No module named 'requests'"
 
 ```bash
-# Install requests
-pip install requests
-# Or add to requirements.txt
+# Sync dependencies using uv
+uv sync
+# All dependencies are managed in pyproject.toml
 ```
 
 ### Issue: "SSLError: certificate verify failed"
