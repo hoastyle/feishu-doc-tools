@@ -14,6 +14,10 @@ dependencies = [
     "mdit-py-plugins>=0.4.0",
     "requests>=2.31.0",
     "python-dotenv>=1.0.0",
+    # Notification system dependencies
+    "httpx>=0.24.0",                # Modern HTTP client for async notifications
+    "pydantic>=2.0.0",              # Configuration management and validation
+    "pydantic-settings>=2.0.0",     # Environment variable integration
 ]
 
 [project.optional-dependencies]
@@ -33,7 +37,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["scripts", "lib"]
+packages = ["scripts", "lib", "notifications"]
 
 [tool.black]
 line-length = 100
