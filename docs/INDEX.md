@@ -36,6 +36,9 @@
 ### 技术文档 (technical/)
 - [TENANT_TO_USER_AUTH_MIGRATION.md](technical/TENANT_TO_USER_AUTH_MIGRATION.md) - OAuth 认证迁移完整技术文档
 
+### 实施进度 (Implementation Progress)
+- [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) ⭐ **最新** - Notification 功能实施进度跟踪
+
 ---
 
 ## 📋 完整文档列表
