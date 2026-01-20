@@ -27,6 +27,8 @@
 
 ### 设计和架构
 - [DESIGN.md](design/DESIGN.md) - 架构设计说明
+- [REPO_ECOSYSTEM.md](design/REPO_ECOSYSTEM.md) - 飞书生态系统架构（三个仓库的协作关系）
+- [NOTIFICATION_DESIGN_V2.md](../NOTIFICATION_DESIGN_V2.md) - 通知系统设计（基于 GitHub MCP 优化）
 - [DIRECT_API_MODE.md](design/DIRECT_API_MODE.md) - 直连API模式
 - [FEISHU_MCP_INTEGRATION.md](design/FEISHU_MCP_INTEGRATION.md) - MCP集成说明
 - [UNIFIED_WIKI_PATH_SEMANTICS.md](design/UNIFIED_WIKI_PATH_SEMANTICS.md) - 参数语义统一指南
@@ -59,6 +61,8 @@
 | 文档 | 说明 | 重点 |
 |------|------|------|
 | [DESIGN.md](design/DESIGN.md) | 系统架构设计 | 整体设计思路 |
+| [REPO_ECOSYSTEM.md](design/REPO_ECOSYSTEM.md) | 飞书生态系统架构 | 三个仓库的协作关系和决策 |
+| [NOTIFICATION_DESIGN_V2.md](../NOTIFICATION_DESIGN_V2.md) | 通知系统设计 | 基于 GitHub MCP 分析的优化方案 |
 | [DIRECT_API_MODE.md](design/DIRECT_API_MODE.md) | 直连API模式 | 无AI的直接调用 |
 | [FEISHU_MCP_INTEGRATION.md](design/FEISHU_MCP_INTEGRATION.md) | MCP服务器集成 | Feishu-MCP使用 |
 | [UNIFIED_WIKI_PATH_SEMANTICS.md](design/UNIFIED_WIKI_PATH_SEMANTICS.md) | 参数语义统一指南 | 从v0.2.0迁移 |
@@ -127,10 +131,10 @@
 |------|------|--------|
 | 用户文档 | 7 | ~2180 |
 | 专题指南 | 2 | ~650 |
-| 设计文档 | 5 | ~850 |
+| 设计文档 | 7 | ~1200 |
 | 技术文档 | 1 | ~1310 |
 | 归档文档 | 3 | ~250 |
-| **总计** | **18** | **~5240** |
+| **总计** | **20** | **~5590** |
 
 ---
 
