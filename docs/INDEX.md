@@ -68,6 +68,14 @@
 | [UNIFIED_WIKI_PATH_SEMANTICS.md](design/UNIFIED_WIKI_PATH_SEMANTICS.md) | 参数语义统一指南 | 从v0.2.0迁移 |
 | [FEATURE_GAPS.md](design/FEATURE_GAPS.md) | 功能限制说明 | 已知限制和workaround |
 
+### 通知系统参考文档 (notification-reference/)
+| 文档 | 说明 | 阅读时间 |
+|------|------|---------|
+| [QUICK_REFERENCE_CARD.md](notification-reference/QUICK_REFERENCE_CARD.md) | 快速参考卡片 | 10-15 分钟 ⭐ START HERE |
+| [ANALYSIS_SUMMARY.md](notification-reference/ANALYSIS_SUMMARY.md) | 执行摘要 | 20-30 分钟 |
+| [notification_system_reference_guide.md](notification-reference/notification_system_reference_guide.md) | 完整参考指南 | 1-2 小时 |
+| [REFERENCE_INDEX.md](notification-reference/REFERENCE_INDEX.md) | 导航指南 | 5 分钟 |
+
 ### 技术文档 (technical/)
 | 文档 | 说明 | 重点 |
 |------|------|------|
