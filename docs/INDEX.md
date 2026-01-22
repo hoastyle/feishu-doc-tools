@@ -79,6 +79,11 @@
 | [notification_system_reference_guide.md](notification-reference/notification_system_reference_guide.md) | 完整参考指南 | 1-2 小时 |
 | [REFERENCE_INDEX.md](notification-reference/REFERENCE_INDEX.md) | 导航指南 | 5 分钟 |
 
+### 通知系统高级功能 (notifications/)
+| 文档 | 说明 | 阅读时间 |
+|------|------|---------|
+| [ADVANCED_FEATURES.md](notifications/ADVANCED_FEATURES.md) ⭐ **新增** | 高级组件参考 | 30-45 分钟 |
+
 ### 技术文档 (technical/)
 | 文档 | 说明 | 重点 |
 |------|------|------|
@@ -144,8 +149,10 @@
 | 专题指南 | 2 | ~650 |
 | 设计文档 | 7 | ~1200 |
 | 技术文档 | 1 | ~1310 |
+| 通知参考文档 | 4 | ~2200 |
+| 通知高级功能 | 1 | ~900 |
 | 归档文档 | 3 | ~250 |
-| **总计** | **20** | **~5590** |
+| **总计** | **25** | **~8690** |
 
 ---
 

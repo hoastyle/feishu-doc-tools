@@ -17,11 +17,18 @@
 **Use for**: Understanding design decisions, learning patterns, questions  
 
 ### 3. **notification_system_reference_guide.md** 📖 COMPREHENSIVE
-**Purpose**: Complete 41 KB reference guide with code examples  
-**Size**: 41.6 KB  
-**Content**: Full analysis of both projects, patterns, architecture, checklist  
-**Time to Read**: 1-2 hours  
-**Use for**: Deep dive, implementation details, troubleshooting  
+**Purpose**: Complete 41 KB reference guide with code examples
+**Size**: 41.6 KB
+**Content**: Full analysis of both projects, patterns, architecture, checklist
+**Time to Read**: 1-2 hours
+**Use for**: Deep dive, implementation details, troubleshooting
+
+### 4. **../notifications/ADVANCED_FEATURES.md** 🎨 ADVANCED COMPONENTS
+**Purpose**: Advanced Feishu card components and implementation guide
+**Size**: ~35 KB
+**Content**: Image elements, progress bars, person tags, interactive elements, tables
+**Time to Read**: 30-45 minutes
+**Use for**: Building complex cards with advanced features
 
 ---
 
