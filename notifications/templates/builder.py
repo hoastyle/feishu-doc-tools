@@ -29,11 +29,15 @@ from notifications.blocks.blocks import (
     column,
     column_set,
     config_textsize_normal_v2,
+    datetime_element,
     divider,
     header as make_header,
+    img,
     markdown as md,
     note as make_note,
+    person,
     plain_text,
+    progress,
     text_tag,
 )
 
@@ -234,6 +238,93 @@ class CardBuilder:
         """
         self._elements.append(make_note([plain_text(content)]))
         return self
+
+    def img(
+        self,
+        img_key: str,
+        *,
+        alt: Optional[str] = None,
+        mode: str = "fit_center",
+    ) -> CardBuilder:
+        """Add an image block.
+
+        Args:
+            img_key: Image file key (must be uploaded to Feishu first)
+            alt: Alternative text for accessibility
+            mode: Display mode ("crop_center", "fit_center", "full_strip")
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> builder.img("img_v7...", alt="Screenshot", mode="fit_center")
+        """
+        self._elements.append(img(img_key, alt=alt, mode=mode))
+        return self
+
+    def progress(
+        self,
+        value: str,
+        total: str,
+        *,
+        color: str = "blue",
+    ) -> CardBuilder:
+        """Add a progress bar block.
+
+        Args:
+            value: Current progress value (e.g., "60")
+            total: Total progress value (e.g., "100")
+            color: Progress bar color ("blue", "green", "red", "yellow", "grey")
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> builder.progress("60", "100", color="green")
+        """
+        self._elements.append(progress(value, total, color=color))
+        return self
+
+    def datetime(
+        self,
+        content: str,
+        *,
+        mode: str = "date",
+    ) -> CardBuilder:
+        """Add a date/time element block.
+
+        Args:
+            content: Date/time string
+            mode: Display mode ("date", "time", "datetime")
+
+        Returns:
+            Self for chaining
+
+        Example:
+            >>> builder.datetime("2026-01-22 18:00:00", mode="datetime")
+        """
+        self._elements.append(datetime_element(content, mode=mode))
+        return self
+
+    def person(self, user_id: str, name: str) -> Block:
+        """Create a person mention block (@mention).
+
+        Note: Person elements are typically used within markdown content or
+        other tag contexts, not as standalone card elements. This method
+        returns the person block for use in custom content.
+
+        Args:
+            user_id: User ID in Feishu system
+            name: Display name of the user
+
+        Returns:
+            A person block dict
+
+        Example:
+            >>> person_block = builder.person("ou_7d...", "Alice")
+            >>> # Use within markdown or custom content
+        """
+        return person(user_id, name)
 
     def columns(self) -> CardBuilder:
         """Start a column set context.

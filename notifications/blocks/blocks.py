@@ -77,6 +77,55 @@ def plain_text(text: str) -> Block:
     }
 
 
+def person(
+    user_id: str,
+    name: str,
+) -> Block:
+    """Create a person mention tag (@mention).
+
+    Args:
+        user_id: User ID in Feishu system
+        name: Display name of the user
+
+    Returns:
+        A person block dict
+
+    Example:
+        >>> person("ou_7d...", "Alice")
+        {'tag': 'person', 'user_id': 'ou_7d...', 'name': {'tag': 'plain_text', 'content': 'Alice'}}
+    """
+    return {
+        "tag": "person",
+        "user_id": user_id,
+        "name": plain_text(name),
+    }
+
+
+def datetime_element(
+    content: str,
+    *,
+    mode: str = "date",
+) -> Block:
+    """Create a date/time element block.
+
+    Args:
+        content: Date/time string
+        mode: Display mode ("date", "time", "datetime")
+
+    Returns:
+        A datetime block dict
+
+    Example:
+        >>> datetime_element("2026-01-22 18:00:00", mode="datetime")
+        {'tag': 'datetime', 'content': '2026-01-22 18:00:00', 'mode': 'datetime'}
+    """
+    return {
+        "tag": "datetime",
+        "content": content,
+        "mode": mode,
+    }
+
+
 def text_tag(text: str, color: str) -> Block:
     """Create a colored text tag for card headers.
 
@@ -335,6 +384,71 @@ def note(
         "tag": "note",
         "elements": list(elements),
         "margin": margin,
+    }
+
+
+def img(
+    img_key: str,
+    *,
+    alt: Optional[str] = None,
+    mode: str = "fit_center",
+    preview: bool = False,
+    title: Optional[str] = None,
+) -> Block:
+    """Create an image block for displaying images in cards.
+
+    Args:
+        img_key: Image file key (must be uploaded to Feishu first)
+        alt: Alternative text for accessibility
+        mode: Display mode ("crop_center", "fit_center", "full_strip")
+        preview: Whether to show preview
+        title: Image title
+
+    Returns:
+        An image block dict
+
+    Example:
+        >>> img("img_v7...", alt="Screenshot", mode="fit_center")
+        {'tag': 'img', 'img_key': 'img_v7...', 'alt': {'tag': 'plain_text', 'content': 'Screenshot'}, ...}
+    """
+    image_block: Block = {
+        "tag": "img",
+        "img_key": img_key,
+        "mode": mode,
+        "preview": preview,
+    }
+    if alt is not None:
+        image_block["alt"] = plain_text(alt)
+    if title is not None:
+        image_block["title"] = plain_text(title)
+    return image_block
+
+
+def progress(
+    value: str,
+    total: str,
+    *,
+    color: str = "blue",
+) -> Block:
+    """Create a progress bar block.
+
+    Args:
+        value: Current progress value (e.g., "60")
+        total: Total progress value (e.g., "100")
+        color: Progress bar color ("blue", "green", "red", "yellow", "grey")
+
+    Returns:
+        A progress block dict
+
+    Example:
+        >>> progress("60", "100", color="green")
+        {'tag': 'progress', 'value': '60', 'total': '100', 'color': 'green'}
+    """
+    return {
+        "tag": "progress",
+        "value": value,
+        "total": total,
+        "color": color,
     }
 
 
