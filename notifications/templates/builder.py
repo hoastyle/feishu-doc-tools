@@ -33,6 +33,7 @@ from notifications.blocks.blocks import (
     header as make_header,
     markdown as md,
     note as make_note,
+    plain_text,
     text_tag,
 )
 
@@ -231,7 +232,7 @@ class CardBuilder:
         Example:
             >>> builder.note("This is an important note")
         """
-        self._elements.append(make_note(content))
+        self._elements.append(make_note([plain_text(content)]))
         return self
 
     def columns(self) -> CardBuilder:
