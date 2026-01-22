@@ -245,7 +245,7 @@ def demo_statistics():
 
     print("\n   📊 完整统计信息:")
     print(f"      - 活跃分组数: {stats['active_groups']}")
-    print(f"      - 总消息数: {stats['total_messages']}")
+    print(f"      - 总消息数: {stats['stats']['messages_grouped']}")
 
     return stats
 
