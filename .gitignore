@@ -54,7 +54,6 @@ htmlcov/
 # .env
 # .env.local
 .env.bak
-.env.*
 
 # Ctags files
 tags
