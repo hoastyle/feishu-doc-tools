@@ -3031,6 +3031,187 @@ class FeishuApiClient:
         logger.info(f"Retrieved {len(all_blocks)} blocks total from {page_count} pages")
         return all_blocks
 
+    def download_media_by_token(self, token: str) -> bytes:
+        """
+        Download media (image/file) by token.
+
+        Uses the batch_get_tmp_download_url API to get a temporary download URL,
+        then downloads the file from that URL.
+
+        Args:
+            token: Media token from image block or file block
+
+        Returns:
+            Binary content of the media
+
+        Raises:
+            FeishuApiRequestError: If download fails
+
+        Example:
+            >>> content = client.download_media_by_token("GEJNbqRPSoaho6xtQ4Lcu4T3n8d")
+            >>> with open("image.png", "wb") as f:
+            ...     f.write(content)
+        """
+        auth_token = self._get_token()
+
+        # Step 1: Get temporary download URL
+        url = f"{self.BASE_URL}/drive/v1/media/batch_get_tmp_download_url"
+        headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
+        payload = {"requests": [{"token": token, "file_type": "file"}]}
+
+        logger.info(f"Getting download URL for: {token}")
+        response = self.session.post(url, json=payload, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to get download URL: HTTP {response.status_code}\n"
+                f"Response: {response.text[:500]}"
+            )
+
+        data = response.json().get("data", {})
+        resources = data.get("resources", [])
+
+        if not resources:
+            raise FeishuApiRequestError(f"No download URL returned for token: {token}")
+
+        download_url = resources[0].get("url")
+        if not download_url:
+            raise FeishuApiRequestError(f"Empty download URL for token: {token}")
+
+        # Step 2: Download from the temporary URL
+        logger.info(f"Downloading from temporary URL...")
+        response = self.session.get(download_url, timeout=30)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to download file: HTTP {response.status_code}"
+            )
+
+        logger.info(f"Downloaded {len(response.content)} bytes")
+        return response.content
+
+    def get_bitable_table_data(self, app_token: str, table_id: str,
+                               page_size: int = 100) -> List[Dict[str, Any]]:
+        """
+        Get all records from a Bitable table.
+
+        API endpoint: GET /bitable/v1/apps/{app_token}/tables/{table_id}/records
+
+        Args:
+            app_token: Bitable app token (from block type 30 sheet.token)
+            table_id: Table ID
+            page_size: Number of records per page
+
+        Returns:
+            List of all records in the table
+
+        Raises:
+            FeishuApiRequestError: If request fails
+
+        Example:
+            >>> records = client.get_bitable_table_data("xxx", "yyy")
+            >>> for record in records:
+            ...     print(record['fields'])
+        """
+        token = self._get_token()
+
+        all_records = []
+        page_token = None
+
+        while True:
+            url = f"{self.BASE_URL}/bitable/v1/apps/{app_token}/tables/{table_id}/records"
+            params = {"page_size": page_size, "page_token": page_token}
+            headers = {"Authorization": f"Bearer {token}"}
+
+            response = self.session.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                raise FeishuApiRequestError(
+                    f"Failed to get Bitable records: HTTP {response.status_code}\n"
+                    f"Response: {response.text[:500]}"
+                )
+
+            data = response.json().get("data", {})
+            items = data.get("items", [])
+            all_records.extend(items)
+
+            has_more = data.get("has_more", False)
+            if not has_more:
+                break
+
+            page_token = data.get("page_token")
+
+        logger.info(f"Retrieved {len(all_records)} records from Bitable")
+        return all_records
+
+    def get_bitable_tables(self, app_token: str) -> List[Dict[str, Any]]:
+        """
+        Get all tables in a Bitable app.
+
+        API endpoint: GET /bitable/v1/apps/{app_token}/tables
+
+        Args:
+            app_token: Bitable app token
+
+        Returns:
+            List of table information
+
+        Raises:
+            FeishuApiRequestError: If request fails
+        """
+        token = self._get_token()
+
+        url = f"{self.BASE_URL}/bitable/v1/apps/{app_token}/tables"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = self.session.get(url, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            raise FeishuApiRequestError(
+                f"Failed to get Bitable tables: HTTP {response.status_code}\n"
+                f"Response: {response.text[:500]}"
+            )
+
+        data = response.json().get("data", {})
+        items = data.get("items", [])
+
+        logger.info(f"Retrieved {len(items)} tables from Bitable")
+        return items
+
+    def get_board_info(self, board_token: str) -> Dict[str, Any]:
+        """
+        Get basic information about a board (whiteboard).
+
+        Note: Full board content retrieval requires additional APIs.
+        This returns metadata about the board.
+
+        Args:
+            board_token: Board token (from block type 43)
+
+        Returns:
+            Board information dictionary
+
+        Raises:
+            FeishuApiRequestError: If request fails
+        """
+        token = self._get_token()
+
+        # Board info endpoint - this is a simplified approach
+        # Full board content may require different APIs
+        url = f"{self.BASE_URL}/whiteboard/v1/spaces/{board_token}"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        logger.info(f"Fetching board info: {board_token}")
+        response = self.session.get(url, headers=headers, timeout=10)
+
+        if response.status_code != 200:
+            # Board API might not be accessible, return basic info
+            logger.warning(f"Could not fetch board info: HTTP {response.status_code}")
+            return {"token": board_token, "accessible": False}
+
+        data = response.json().get("data", {})
+        return data
+
 
 def upload_markdown_to_feishu(
     md_file: str,

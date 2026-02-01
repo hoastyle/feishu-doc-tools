@@ -6,9 +6,15 @@ Converts Feishu document blocks to Markdown format.
 """
 
 import logging
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# Image download configuration
+DOWNLOAD_IMAGES = True  # Whether to download images or use placeholders
+IMAGE_OUTPUT_DIR = "images"  # Directory to save downloaded images
 
 
 # Feishu block type constants
@@ -32,6 +38,9 @@ BLOCK_TYPE_IMAGE = 27
 BLOCK_TYPE_TABLE = 31
 BLOCK_TYPE_TABLE_CELL = 32
 BLOCK_TYPE_VIEW = 33
+BLOCK_TYPE_SHEET = 30  # Spreadsheet/Bitable
+BLOCK_TYPE_QUOTE_CONTAINER = 34  # Quote container
+BLOCK_TYPE_BOARD = 43  # Whiteboard/Mermaid
 BLOCK_TYPE_DIVIDER = 22
 
 
@@ -74,12 +83,21 @@ LANGUAGE_MAP = {
 class FeishuToMarkdownConverter:
     """Convert Feishu document blocks to Markdown format."""
 
-    def __init__(self):
-        """Initialize converter."""
+    def __init__(self, client=None, output_dir: str = None):
+        """
+        Initialize converter.
+
+        Args:
+            client: Optional FeishuApiClient for downloading images/media
+            output_dir: Directory to save downloaded images (default: images/)
+        """
         self.markdown_lines = []
         self.list_stack = []  # Track nested list levels
         self.in_table = False
         self.table_data = []
+        self.client = client
+        self.output_dir = Path(output_dir) if output_dir else Path(IMAGE_OUTPUT_DIR)
+        self.image_count = 0
 
     def convert(self, blocks: List[Dict[str, Any]]) -> str:
         """
@@ -95,6 +113,11 @@ class FeishuToMarkdownConverter:
         self.list_stack = []
         self.in_table = False
         self.table_data = []
+        self.image_count = 0
+
+        # Create image output directory if needed
+        if self.client and DOWNLOAD_IMAGES:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Converting {len(blocks)} blocks to Markdown")
 
@@ -149,6 +172,12 @@ class FeishuToMarkdownConverter:
             self._process_image(block)
         elif block_type == BLOCK_TYPE_TABLE:
             self._process_table(block, block_index)
+        elif block_type == BLOCK_TYPE_SHEET:
+            self._process_sheet(block)
+        elif block_type == BLOCK_TYPE_BOARD:
+            self._process_board(block)
+        elif block_type == BLOCK_TYPE_QUOTE_CONTAINER:
+            self._process_quote_container(block)
         elif block_type == BLOCK_TYPE_DIVIDER:
             self._process_divider()
         else:
@@ -251,9 +280,41 @@ class FeishuToMarkdownConverter:
 
     def _process_image(self, block: Dict[str, Any]):
         """Process image block."""
-        # Image handling - placeholder for now
-        # In a full implementation, you'd download the image using the token
-        self.markdown_lines.append("![Image](image-placeholder.png)")
+        image_data = block.get("image", {})
+        token = image_data.get("token", "")
+
+        if not token:
+            self.markdown_lines.append("![Image](image-placeholder.png)")
+            self.markdown_lines.append("")
+            return
+
+        # Try to download image if client is available
+        if self.client and DOWNLOAD_IMAGES:
+            try:
+                self.image_count += 1
+                # Determine file extension from token or default to png
+                ext = "png"  # Default extension
+                filename = f"image_{self.image_count}.{ext}"
+                filepath = self.output_dir / filename
+
+                # Download image
+                logger.info(f"Downloading image: {token}")
+                content = self.client.download_media_by_token(token)
+
+                # Save to file
+                with open(filepath, "wb") as f:
+                    f.write(content)
+
+                logger.info(f"Saved image to: {filepath}")
+                self.markdown_lines.append(f"![Image]({filepath})")
+                self.markdown_lines.append("")
+                return
+
+            except Exception as e:
+                logger.warning(f"Failed to download image {token}: {e}")
+
+        # Fallback to placeholder
+        self.markdown_lines.append(f"![Image](https://open.feishu.cn/block/{token})")
         self.markdown_lines.append("")
 
     def _process_table(self, block: Dict[str, Any], block_index: Dict[str, Dict[str, Any]]):
@@ -267,28 +328,225 @@ class FeishuToMarkdownConverter:
             logger.warning("Table has zero size, skipping")
             return
 
-        # Initialize table matrix
+        # Initialize table matrix (row-major order)
+        # Feishu table cells are ordered row by row
         table_matrix = [["" for _ in range(column_size)] for _ in range(row_size)]
 
         # Get all table cells
         children_ids = block.get("children", [])
+        cell_index = 0
+
         for cell_id in children_ids:
             cell_block = block_index.get(cell_id)
-            if cell_block and cell_block.get("block_type") == BLOCK_TYPE_TABLE_CELL:
-                # Extract cell position (from block_id pattern: table_xxx_cell_row_col)
-                # This is a simplified approach; actual implementation may vary
-                pass  # TODO: Extract cell content and position
+            if not cell_block or cell_block.get("block_type") != BLOCK_TYPE_TABLE_CELL:
+                continue
 
-        # For now, create a simple table placeholder
-        self.markdown_lines.append("| Header 1 | Header 2 |")
-        self.markdown_lines.append("|----------|----------|")
-        self.markdown_lines.append("| Cell 1   | Cell 2   |")
+            # Calculate cell position (row-major order)
+            row = cell_index // column_size
+            col = cell_index % column_size
+
+            if row >= row_size:
+                logger.warning(f"Cell index {cell_index} exceeds row size {row_size}")
+                break
+
+            # Extract cell content from children
+            cell_content = self._extract_cell_content(cell_block, block_index)
+            table_matrix[row][col] = cell_content
+
+            cell_index += 1
+
+        # Convert table matrix to Markdown
+        self._table_matrix_to_markdown(table_matrix)
+
+    def _extract_cell_content(self, cell_block: Dict[str, Any], block_index: Dict[str, Dict[str, Any]]) -> str:
+        """
+        Extract text content from a table cell.
+
+        Args:
+            cell_block: Table cell block
+            block_index: Block index for looking up children
+
+        Returns:
+            Cell content as string
+        """
+        content_parts = []
+        children_ids = cell_block.get("children", [])
+
+        for child_id in children_ids:
+            child_block = block_index.get(child_id)
+            if not child_block:
+                continue
+
+            block_type = child_block.get("block_type")
+
+            # Text block
+            if block_type == BLOCK_TYPE_TEXT:
+                text_data = child_block.get("text", {})
+                elements = text_data.get("elements", [])
+                text = self._extract_text_from_elements(elements)
+                if text:
+                    content_parts.append(text)
+
+            # Other block types in cell (code, todo, etc.)
+            elif block_type == BLOCK_TYPE_CODE:
+                code_data = child_block.get("code", {})
+                code = code_data.get("content", "")
+                if code:
+                    language = LANGUAGE_MAP.get(code_data.get("language", 1), "text")
+                    content_parts.append(f"```{language}\n{code}\n```")
+
+            elif block_type == BLOCK_TYPE_TODO:
+                todo_data = child_block.get("todo", {})
+                elements = todo_data.get("elements", [])
+                checked = todo_data.get("done", False)
+                text = self._extract_text_from_elements(elements)
+                checkbox = "[x]" if checked else "[ ]"
+                if text:
+                    content_parts.append(f"{checkbox} {text}")
+
+        return " ".join(content_parts).strip()
+
+    def _table_matrix_to_markdown(self, table_matrix: List[List[str]]):
+        """
+        Convert table matrix to Markdown format.
+
+        Args:
+            table_matrix: 2D list of cell contents
+        """
+        if not table_matrix or not table_matrix[0]:
+            return
+
+        num_rows = len(table_matrix)
+        num_cols = len(table_matrix[0])
+
+        # Create header row
+        header = "| " + " | ".join(table_matrix[0]) + " |"
+
+        # Create separator row
+        separator = "|" + "|".join(["---" for _ in range(num_cols)]) + "|"
+
+        self.markdown_lines.append(header)
+        self.markdown_lines.append(separator)
+
+        # Create data rows
+        for row in table_matrix[1:]:
+            row_text = "| " + " | ".join(row) + " |"
+            self.markdown_lines.append(row_text)
+
         self.markdown_lines.append("")
 
     def _process_divider(self):
         """Process divider block."""
         self.markdown_lines.append("---")
         self.markdown_lines.append("")
+
+    def _process_sheet(self, block: Dict[str, Any]):
+        """Process spreadsheet/Bitable block (type 30)."""
+        sheet_data = block.get("sheet", {})
+        token = sheet_data.get("token", "")
+
+        if not token:
+            self.markdown_lines.append("> [Spreadsheet - Unable to preview]")
+            self.markdown_lines.append("")
+            return
+
+        # Try to get table data if client is available
+        if self.client:
+            try:
+                # Get tables from the Bitable
+                tables = self.client.get_bitable_tables(token)
+                if tables:
+                    table_id = tables[0].get("table_id")
+                    records = self.client.get_bitable_table_data(token, table_id)
+
+                    if records:
+                        # Convert records to Markdown table
+                        self._convert_bitable_to_markdown(records)
+                        return
+
+            except Exception as e:
+                logger.warning(f"Failed to get Bitable data: {e}")
+
+        # Fallback to link
+        self.markdown_lines.append(f"> [Spreadsheet](https://feishu.cn/base/{token})")
+        self.markdown_lines.append("")
+
+    def _convert_bitable_to_markdown(self, records: List[Dict[str, Any]]):
+        """Convert Bitable records to Markdown table."""
+        if not records:
+            return
+
+        # Get field names from first record
+        fields = list(records[0].get("fields", {}).keys())
+
+        if not fields:
+            self.markdown_lines.append("> [Empty Spreadsheet]")
+            self.markdown_lines.append("")
+            return
+
+        # Create header
+        header = "| " + " | ".join(fields) + " |"
+        separator = "|" + "|".join(["---" for _ in fields]) + "|"
+
+        self.markdown_lines.append(header)
+        self.markdown_lines.append(separator)
+
+        # Add rows
+        for record in records:
+            row_data = record.get("fields", {})
+            row_values = []
+            for field in fields:
+                value = row_data.get(field, "")
+                # Convert complex values to string
+                if isinstance(value, dict):
+                    value = str(value.get("text", value))
+                elif value is None:
+                    value = ""
+                else:
+                    value = str(value)
+                row_values.append(value)
+            row = "| " + " | ".join(row_values) + " |"
+            self.markdown_lines.append(row)
+
+        self.markdown_lines.append("")
+
+    def _process_board(self, block: Dict[str, Any]):
+        """Process board/whiteboard block (type 43) - may contain Mermaid."""
+        board_data = block.get("board", {})
+        token = board_data.get("token", "")
+
+        if not token:
+            self.markdown_lines.append("> [Whiteboard - Unable to preview]")
+            self.markdown_lines.append("")
+            return
+
+        # Try to get board info if client is available
+        if self.client:
+            try:
+                info = self.client.get_board_info(token)
+                title = info.get("name", "Whiteboard")
+                self.markdown_lines.append(f"> [{title} - Whiteboard](https://feishu.cn/whiteboard/{token})")
+                self.markdown_lines.append("")
+                return
+
+            except Exception as e:
+                logger.warning(f"Failed to get board info: {e}")
+
+        # Fallback to link
+        self.markdown_lines.append(f"> [Whiteboard (may contain Mermaid diagrams)](https://feishu.cn/whiteboard/{token})")
+        self.markdown_lines.append("")
+
+    def _process_quote_container(self, block: Dict[str, Any]):
+        """Process quote container block (type 34)."""
+        # Quote container is a wrapper for quote blocks
+        # Process it as a regular quote
+        quote_data = block.get("quote_container", {})
+        elements = quote_data.get("elements", [])
+        text = self._extract_text_from_elements(elements)
+
+        if text:
+            self.markdown_lines.append(f"> {text}")
+            self.markdown_lines.append("")
 
     def _extract_text_from_elements(self, elements: List[Dict[str, Any]]) -> str:
         """Extract and format text from text elements."""
@@ -346,15 +604,21 @@ class FeishuToMarkdownConverter:
         return text
 
 
-def convert_feishu_to_markdown(blocks: List[Dict[str, Any]]) -> str:
+def convert_feishu_to_markdown(
+    blocks: List[Dict[str, Any]],
+    client=None,
+    output_dir: str = None
+) -> str:
     """
     Convenience function to convert Feishu blocks to Markdown.
 
     Args:
         blocks: List of Feishu blocks
+        client: Optional FeishuApiClient for downloading images/media
+        output_dir: Directory to save downloaded images
 
     Returns:
         Markdown string
     """
-    converter = FeishuToMarkdownConverter()
+    converter = FeishuToMarkdownConverter(client=client, output_dir=output_dir)
     return converter.convert(blocks)

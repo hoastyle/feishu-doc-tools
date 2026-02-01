@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from lib.feishu_api_client import FeishuApiClient
 from scripts.feishu_to_md import convert_feishu_to_markdown
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -156,10 +157,7 @@ def download_document(
 
         logger.info(f"Retrieved {len(blocks)} blocks")
 
-        # Convert to Markdown
-        markdown = convert_feishu_to_markdown(blocks)
-
-        # Determine output path
+        # Determine output path and image directory
         if not output_path:
             # Generate filename from title if available
             if doc_title:
@@ -170,9 +168,17 @@ def download_document(
                 output_path = f"{doc_id}.md"
             logger.info(f"No output path specified, using: {output_path}")
 
-        # Save to file
+        # Create output directory and images subdirectory
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
+        image_dir = output_file.parent / "images"
+
+        # Convert to Markdown with client for image download
+        markdown = convert_feishu_to_markdown(blocks, client=client, output_dir=str(image_dir))
+
+        # Save to file
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(markdown)
 
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(markdown)
