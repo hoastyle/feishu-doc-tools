@@ -20,6 +20,12 @@ except ImportError:
     print("Error: markdown-it-py not found. Install it with: pip install markdown-it-py", file=sys.stderr)
     sys.exit(1)
 
+try:
+    from mdit_py_plugins.dollarmath import dollarmath_plugin
+except ImportError:
+    dollarmath_plugin = None
+    print("Warning: mdit-py-plugins not found. Math formula support disabled. Install with: pip install mdit-py-plugins", file=sys.stderr)
+
 
 # 配置日志
 logging.basicConfig(
@@ -82,6 +88,8 @@ class MarkdownToFeishuConverter:
         self.blocks: List[Dict[str, Any]] = []
         self.images: List[Dict[str, Any]] = []
         self.md_parser = MarkdownIt().enable('table')
+        if dollarmath_plugin is not None:
+            dollarmath_plugin(self.md_parser, double_inline=True)
 
     def convert(self) -> Dict[str, Any]:
         """执行转换"""
@@ -158,6 +166,9 @@ class MarkdownToFeishuConverter:
             elif token.type == 'table_open':
                 # 处理表格
                 i = self._process_table(tokens, i)
+            elif token.type == 'math_block' or token.type == 'math_block_double':
+                self._process_math_block(token)
+                i += 1
             else:
                 i += 1
 
@@ -187,11 +198,14 @@ class MarkdownToFeishuConverter:
         text_styles = self._extract_inline_styles(inline_token)
 
         # 如果段落为空（例如只包含被跳过的网络图片），则跳过
-        if not text_styles or all(not style.get('text', '').strip() for style in text_styles):
+        if not text_styles or all(
+            not style.get('text', '').strip() and not style.get('equation', '')
+            for style in text_styles
+        ):
             return start_idx + 3
 
         # 检查是否需要分割长段落
-        total_length = sum(len(style.get('text', '')) for style in text_styles)
+        total_length = sum(len(style.get('text', '') or style.get('equation', '')) for style in text_styles)
         if total_length > self.max_text_length:
             # 分割为多个block
             self._split_long_paragraph(text_styles)
@@ -407,6 +421,23 @@ class MarkdownToFeishuConverter:
 
         return i + 1
 
+    def _process_math_block(self, token: Token):
+        """处理块级数学公式（$$...$$）"""
+        equation = token.content.strip()
+        if not equation:
+            return
+
+        block = {
+            'blockType': 'text',
+            'options': {
+                'text': {
+                    'textStyles': [{'equation': equation, 'style': {}}],
+                    'align': 1
+                }
+            }
+        }
+        self.blocks.append(block)
+
     def _extract_inline_text(self, inline_token: Token) -> str:
         """提取inline token的纯文本"""
         if not inline_token.children:
@@ -422,6 +453,8 @@ class MarkdownToFeishuConverter:
                 continue
             elif child.type in ['strong_close', 'em_close', 'link_close']:
                 continue
+            elif child.type in ('math_inline', 'math_inline_double'):
+                texts.append(f"${child.content}$")
             elif child.type == 'image':
                 texts.append(f"[图片: {child.attrGet('alt') or 'image'}]")
 
@@ -501,6 +534,17 @@ class MarkdownToFeishuConverter:
                     })
                     current_text = []
                 current_style.pop('strikethrough', None)
+            elif child.type in ('math_inline', 'math_inline_double'):
+                if current_text:
+                    styles.append({
+                        'text': ''.join(current_text),
+                        'style': current_style.copy()
+                    })
+                    current_text = []
+                styles.append({
+                    'equation': child.content,
+                    'style': {}
+                })
             elif child.type == 'image':
                 # 处理图片
                 self._handle_image(child, len(self.blocks))

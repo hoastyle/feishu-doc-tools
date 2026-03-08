@@ -99,7 +99,7 @@ class FeishuApiClient:
     BASE_URL = "https://open.feishu.cn/open-apis"
     AUTH_ENDPOINT = "/auth/v3/tenant_access_token/internal"
     BLOCKS_ENDPOINT_TEMPLATE = "/docx/v1/documents/{doc_id}/blocks/{parent_id}/children"
-    IMAGE_UPLOAD_ENDPOINT = "/docx/v1/media/upload"
+    IMAGE_UPLOAD_ENDPOINT = "/drive/v1/medias/upload_all"
 
     # User Authentication Endpoints (Updated to v2 API)
     # 授权端点使用 accounts.feishu.cn 域名（不是 open.feishu.cn）
@@ -2459,27 +2459,31 @@ class FeishuApiClient:
         """
         token = self._get_token()
 
-        # Step 1: Upload image
+        # Step 1: Upload image with parent_node = Image Block ID (per official docs)
         logger.info(f"Uploading image: {image_path_or_url}")
 
         if image_path_or_url.startswith(("http://", "https://")):
-            # For URL, we'll use the URL directly (Feishu will fetch it)
             file_token = image_path_or_url
         else:
-            # Local file - read and upload
-            file_token = self._upload_image_file(image_path_or_url, file_name, token)
+            file_token = self._upload_image_file(
+                image_path_or_url, file_name, token, parent_node=block_id
+            )
 
-        # Step 2: Bind to block
+        # Step 2: PATCH block with replace_image to bind the uploaded file_token
         logger.info(f"Binding image to block {block_id}")
 
-        endpoint = f"/docx/v1/documents/{doc_id}/blocks/{block_id}/image"
-        url = f"{self.BASE_URL}{endpoint}"
+        endpoint = f"/docx/v1/documents/{doc_id}/blocks/{block_id}"
+        url = f"{self.BASE_URL}{endpoint}?document_revision_id=-1"
 
-        payload = {"file_token": file_token}
+        payload = {
+            "replace_image": {
+                "token": file_token,
+            }
+        }
 
         headers = {"Authorization": f"Bearer {token}"}
 
-        response = self.session.put(url, json=payload, headers=headers, timeout=30)
+        response = self.session.patch(url, json=payload, headers=headers, timeout=30)
 
         if response.status_code != 200:
             raise FeishuApiRequestError(
@@ -2496,39 +2500,42 @@ class FeishuApiClient:
         logger.info(f"Successfully bound image to block {block_id}")
         return result
 
-    def _upload_image_file(self, file_path: str, file_name: Optional[str], token: str) -> str:
-        """Upload local image file and return file_token"""
+    def _upload_image_file(
+        self, file_path: str, file_name: Optional[str], token: str, parent_node: Optional[str] = None
+    ) -> str:
+        """Upload local image file via /drive/v1/medias/upload_all and return file_token"""
         path = Path(file_path)
 
         if not path.exists():
             raise FeishuApiRequestError(f"Image file not found: {file_path}")
 
-        # Determine file name
         if not file_name:
             file_name = path.name
 
-        # Read file
-        with path.open("rb") as f:
-            file_content = f.read()
+        file_size = path.stat().st_size
 
-        # Detect MIME type
         import mimetypes
-
         mime_type, _ = mimetypes.guess_type(file_name)
         if not mime_type:
             mime_type = "image/png"
 
-        # Upload
         url = f"{self.BASE_URL}{self.IMAGE_UPLOAD_ENDPOINT}"
 
-        files = {"file": (file_name, file_content, mime_type)}
+        with path.open("rb") as f:
+            form_data = {
+                "file_name": (None, file_name),
+                "parent_type": (None, "docx_image"),
+                "parent_node": (None, parent_node or ""),
+                "size": (None, str(file_size)),
+                "file": (file_name, f, mime_type),
+            }
 
-        headers = {"Authorization": f"Bearer {token}"}
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": None,
+            }
 
-        # Remove Content-Type from session headers for multipart
-        headers.pop("Content-Type", None)
-
-        response = self.session.post(url, files=files, headers=headers, timeout=60)
+            response = self.session.post(url, files=form_data, headers=headers, timeout=60)
 
         if response.status_code != 200:
             raise FeishuApiRequestError(
@@ -2569,8 +2576,18 @@ class FeishuApiClient:
 
             # Convert to Feishu API format
             if equation_content:
-                # Equation element
-                text_elements.append({"equation": equation_content})
+                text_elements.append({
+                    "equation": {
+                        "content": equation_content + "\n",
+                        "text_element_style": {
+                            "bold": False,
+                            "italic": False,
+                            "strikethrough": False,
+                            "underline": False,
+                            "inline_code": False,
+                        },
+                    }
+                })
             else:
                 # Text run element (allow empty strings as per Feishu API requirement)
                 text_element_style = self._convert_text_style(style.get("style", {}))
@@ -2910,8 +2927,7 @@ class FeishuApiClient:
         """Extract image block IDs from API response"""
         block_ids = []
 
-        # The response should contain created blocks with their IDs
-        children = result.get("children", [])
+        children = result.get("data", {}).get("children", [])
 
         for i, child in enumerate(children):
             # Check if this is an image block (block_type == 27)
